@@ -52,6 +52,10 @@ animation_t monster_anim;
 animation_t tree_anim;
 animation_t jump_anim;
 
+keyset_t [2] player_controls;
+object_t [] world_objects;
+world_t world;
+
 //=============================================================================
 
 class animation_t
@@ -101,6 +105,7 @@ void resources()
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
 	}
 
+//DEFINITELY want this to be a class / reference type!
 class object_t //could we use a drawable_object whereas object_t has re-usable functionality for a camera_t?
 	{
 	public:
@@ -315,7 +320,7 @@ class player_t : skier_t
 
 	}
 
-class world
+class world_t
 	{
 	object_t [] objects;
 	
@@ -324,7 +329,6 @@ class world
 		player_t x;
 		objects ~= x; //polymorphism rules. 
 		}
-	
 	}
 
 //https://www.allegro.cc/manual/5/keyboard.html
@@ -332,10 +336,10 @@ class world
 // 		change objects? We have to FIND all keys associated with that object and 
 // 		change them.)
 alias ALLEGRO_KEY = ubyte;
-class keyset_t
+struct keyset_t
 		{
-		object_t object_to_touch;
-		ALLEGRO_KEY [5] keys;
+		object_t obj;
+		ALLEGRO_KEY [5] key;
 		// If we support MOUSE clicks, we could simply attach a MOUSE in here 
 		// and have it forward to the object's click_on() method.
 		// But again, that kills the idea of multiplayer.
@@ -394,6 +398,30 @@ bool initialize()
 	color2 = al_map_rgba_f(0.5, 0.25, 0.125, 1);
 	writefln("%s, %s, %s, %s", color1.r, color1.g, color2.b, color2.a);
 	
+	// Create objects for player's 1 and 2
+	// --------------------------------------------------------
+	player_t player1;
+	player_t player2;
+	
+	world_objects ~= player1; //should be [0]
+	world_objects ~= player2; //should be [1]
+
+	// SETUP player controls
+	// --------------------------------------------------------
+	player_controls[0].key[0] = 0;
+	player_controls[0].key[DOWN_KEY	] = ALLEGRO_KEY_DOWN;
+	player_controls[0].key[LEFT_KEY	] = ALLEGRO_KEY_LEFT;
+	player_controls[0].key[RIGHT_KEY] = ALLEGRO_KEY_RIGHT;
+	player_controls[0].key[ACTION_KEY] = ALLEGRO_KEY_SPACE;
+	player_controls[0].obj = world_objects[0];
+	
+	player_controls[1].key[UP_KEY	] = ALLEGRO_KEY_W;
+	player_controls[1].key[DOWN_KEY	] = ALLEGRO_KEY_S;
+	player_controls[1].key[LEFT_KEY	] = ALLEGRO_KEY_A;
+	player_controls[1].key[RIGHT_KEY] = ALLEGRO_KEY_D;
+	player_controls[1].key[ACTION_KEY] = ALLEGRO_KEY_R;
+	player_controls[1].obj = world_objects[1];
+
 	return 0;
 	}
 
@@ -442,7 +470,10 @@ void execute()
 		}
 	}
 
-void shutdown()
+//best name? shutdown()? used. exit()? used. free? used. close()? used. finalize()? ???   --- Applicable name?
+// Finalize? Destroy? Terminate? Kill? Cleanup? Uninitialize? Deinitialize?  
+// >Dispose?
+void terminate() //I think "shutdown" is a standard lib UNIX function. Easier for breakpointing by name.
 	{
 		
 	}
@@ -456,7 +487,7 @@ int main(char[][] args)
 		{
 		initialize();
 		execute();
-		shutdown();
+		terminate();
 		return 0;
 		} );
 
