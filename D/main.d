@@ -328,18 +328,6 @@ class world
 	}
 
 //https://www.allegro.cc/manual/5/keyboard.html
-class keybinding_t
-	{
-	ubyte allegro_key; // SEE allegro enum in above URL. (note the enum is UNNAMED. ugh.) Values should be below 255?
-	//function ptr to call(), how do we deal with ones that need arguments?
-	void function() keybinding_fptr;
-
-// 	AGAIN, do we support mouse clicks? Then no multiplayer support...
-//	void function(float, float) mouse_fptr;
-//	bool is_keyboard;
-	}
-	
-// WAIT, why not do this DIFFERNTLY, like this: 
 //	(instead of individual KEYS touching ANY OBJECT METHOD. Because what if we 
 // 		change objects? We have to FIND all keys associated with that object and 
 // 		change them.)
@@ -348,6 +336,9 @@ class keyset_t
 		{
 		object_t object_to_touch;
 		ALLEGRO_KEY [5] keys;
+		// If we support MOUSE clicks, we could simply attach a MOUSE in here 
+		// and have it forward to the object's click_on() method.
+		// But again, that kills the idea of multiplayer.
 		}
 		
 enum
@@ -357,12 +348,6 @@ enum
 	LEFT_KEY = 2,
 	RIGHT_KEY = 3,
 	ACTION_KEY = 4
-	}
-	
-	
-class controller_t
-	{
-	keybinding_t [] bindings;
 	}
 
 bool initialize()
