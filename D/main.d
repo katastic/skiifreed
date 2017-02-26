@@ -1,6 +1,8 @@
 // SkiiFree'd - KATKO 2017
 //=============================================================================
 
+// http://www.everything2.com/title/Skifree
+
 import std.stdio;
 import std.conv;
 import std.string;
@@ -37,8 +39,8 @@ immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
 //player constants
-immutable float speed_change_rate = 1.0F; 	//NYI
-immutable float speed_maximum	  = 10.0F; 	//NYI
+immutable float speed_change_rate = .05F; 	//NYI
+immutable float speed_maximum	  =  1F; 	//NYI
 immutable float player_jump_velocity = 10.0F; 	//NYI
 
 //GLOBALS
@@ -58,9 +60,9 @@ animation_t tree_anim;
 animation_t jump_anim;
 
 keyset_t [2] player_controls;
-object_t [] world_objects;
+//object_t [] world_objects;
 world_t world;
-
+viewport_t [1] viewports;
 
 // Is there any way we can have global variables in a NAMESPACE (use a module?)
 // Or is the single dereference NOT a big deal to pass tbe "globals struct"
@@ -107,9 +109,14 @@ class animation_t
 	void empty(){}
 	}
 	
-void resources()	
+void load_resources()	
 	{
-	player_anim	.load_extra_frame("./data/mysha.pcx");
+	player_anim = new animation_t;
+	monster_anim = new animation_t;
+	tree_anim = new animation_t;
+	jump_anim = new animation_t;
+	
+	player_anim	.load_extra_frame("./data/skii.png");
 	monster_anim.load_extra_frame("./data/mysha.pcx");
 	tree_anim	.load_extra_frame("./data/mysha.pcx");
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
@@ -134,6 +141,14 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 
 	this()
 		{
+		x = 0;
+		y = 0;
+		z = 0;
+		x_vel = 0;
+		y_vel = 0;
+		z_vel = 0;
+		// I thought this shit was AUTO INITALIZED?
+			
 		trips_you = false;
 		slows_you_down = false;
 		is_following_another_object = false;
@@ -200,10 +215,32 @@ class camera_t : object_t
 class drawable_object_t : object_t
 	{
 	animation_t animation;
+	//int frame; for animated pieces
+	//float frame_delay; //number of logic frames per increment 
+	//enum direction? // dir=0 for buildings. other directions... how many did skiifree have?
+	// this many:
+	//  down, 
+	//	down left, down left left, left
+	//  down right, down right right, right
 
-	void draw(int frame)
+	void set_animation(animation_t anim)
 		{
-		animation.draw(frame, x, y);
+		assert(anim !is null, "You passed a NULL animation to set_animation in drawable_object_t!");
+		animation = anim;
+		}
+
+
+	void draw(viewport_t viewport)
+		{
+					
+//			writeln("drawing object...");
+		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
+			
+		alias v = viewport;
+		//int camera_offset_x, int camera_offset_y, int clip_x, int clip_y, int clip_w, int clip_h) //or just sent it a viewport_t reference?
+		animation.draw(0, 
+			this.x - v.offset_x, 
+			this.y - v.offset_y); //clipping not used yet. just pass along the viewport again?
 		}
 	}
 	
@@ -295,7 +332,7 @@ class monster_t : drawable_object_t
 		
 	override void on_collision(object_t other_obj) 
 		{
-		if(auto p = cast(player_t) other_obj)
+		if(auto p = cast(skier_t) other_obj)
 			{
 			// I'M GONNA EAT YOU, BUB.
 			}		
@@ -306,29 +343,36 @@ class skier_t : drawable_object_t
 	{
 	bool is_jumping;
 	bool is_grounded;
+
+	this(){}
+	this(int x, int y){this.x = x; this.y = y;}
 	
 	override void up()
 			{
 			writeln(" - [skier_t] up() recieved.");
-			y_vel += speed_change_rate;
-			if(y_vel > speed_maximum)y_vel = speed_maximum;		
+			y_vel -= speed_change_rate;
+			if(y_vel < 0)y_vel = 0;		
 			}
 
 	override void down()
 			{
 			writeln(" - [skier_t] down() recieved.");
-			y_vel -= speed_change_rate;
-			if(y_vel < 0)y_vel = 0;		
+			y_vel += speed_change_rate;
+			if(y_vel > speed_maximum)y_vel = speed_maximum;		
 			}
 
 	override void left()
 			{
 			writeln(" - [skier_t] left() recieved.");
+			x_vel -= speed_change_rate;
+			if(x_vel < 0)x_vel = 0;		
 			}
 
 	override void right()
 			{
 			writeln(" - [skier_t] right() recieved.");
+			x_vel += speed_change_rate;
+			if(x_vel > speed_maximum)x_vel = speed_maximum;		
 			}
 
 	override void action()
@@ -341,10 +385,8 @@ class skier_t : drawable_object_t
 				}
 			}
 
-	
 	override void on_tick()
 		{
-			
 		x += x_vel;
 		y += y_vel;
 		z += z_vel;
@@ -386,22 +428,51 @@ class skier_t : drawable_object_t
 			z_vel = 0;
 			z = maximum_z-1;
 			}
+
+		writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
 		
 		}
 	}
 	
-class player_t : skier_t //IS THIS NEEDED, or just a skier_t???
+	
+class viewport_t
 	{
-
+	// Screen coordinates
+	int x;
+	int y;
+	int width;
+	int height;
+	
+	// Camera position
+	int offset_x;
+	int offset_y;
 	}
+	
 
 class world_t
 	{
-	object_t [] objects;
+	drawable_object_t [] objects; //should be drawable_object_t?
+ 	
+	void draw(viewport_t viewport)
+		{
+		foreach(o; objects)
+			{
+			//do shit.
+			o.draw(viewport);
+			}
+		}
+
+	void logic()
+		{
+		foreach(o; objects)
+			{
+			o.on_tick();
+			}
+		}
 	
 	void test()
 		{
-		player_t x;
+		skier_t x;
 		objects ~= x; //polymorphism rules. 
 		}
 	}
@@ -433,11 +504,11 @@ bool initialize()
 	{
 	if (!al_init())
 		{
-		auto ver = al_get_allegro_version();
-		auto major = ver >> 24;
-		auto minor = (ver >> 16) & 255;
-		auto revision = (ver >> 8) & 255;
-		auto release = ver & 255;
+		auto ver 		= al_get_allegro_version();
+		auto major 		= ver >> 24;
+		auto minor 		= (ver >> 16) & 255;
+		auto revision 	= (ver >> 8) & 255;
+		auto release 	= ver & 255;
 
 		writefln("The system Allegro version (%s.%s.%s.%s) does not match the version of this binding (%s.%s.%s.%s)",
 			major, minor, revision, release,
@@ -458,8 +529,8 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 		}
 	*/
 	
-	display = al_create_display(500, 500);
-	queue = al_create_event_queue();
+	display = al_create_display(640, 480);
+	queue	= al_create_event_queue();
 
 	if (!al_install_keyboard())      assert(0, "al_install_keyboard failed!");
 	if (!al_install_mouse())         assert(0, "al_install_mouse failed!");
@@ -484,42 +555,76 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 	color2 = al_map_rgba_f(0.5, 0.25, 0.125, 1);
 	writefln("%s, %s, %s, %s", color1.r, color1.g, color2.b, color2.a);
 	
+	// load animations/etc
+	// --------------------------------------------------------
+	load_resources();
+
+	// SETUP world
+	// --------------------------------------------------------
+	world = new world_t;
+
 	// Create objects for player's 1 and 2
 	// --------------------------------------------------------
-	player_t player1 = new player_t;
-	player_t player2 = new player_t;
-	world_objects ~= player1; //should be [0]
-	world_objects ~= player2; //should be [1]
+	skier_t player1 = new skier_t(50, 50);
+	skier_t player2 = new skier_t(200, 50);
+
+	player1.set_animation(player_anim);	
+	player2.set_animation(player_anim);
+	
+	world.objects ~= player1; //should be [0]
+	world.objects ~= player2; //should be [1]
 	
 	// SETUP player controls
 	// --------------------------------------------------------
-	player_controls[0].key[UP_KEY] = ALLEGRO_KEY_UP;
+	player_controls[0].key[UP_KEY	] = ALLEGRO_KEY_UP;
 	player_controls[0].key[DOWN_KEY	] = ALLEGRO_KEY_DOWN;
 	player_controls[0].key[LEFT_KEY	] = ALLEGRO_KEY_LEFT;
 	player_controls[0].key[RIGHT_KEY] = ALLEGRO_KEY_RIGHT;
 	player_controls[0].key[ACTION_KEY] = ALLEGRO_KEY_SPACE;
-	player_controls[0].obj = world_objects[0];
+	player_controls[0].obj = world.objects[0];
 	
-	//player_controls[0].obj.up();
-	//	(world_objects[0]).up();
-
 	player_controls[1].key[UP_KEY	] = ALLEGRO_KEY_W;
 	player_controls[1].key[DOWN_KEY	] = ALLEGRO_KEY_S;
 	player_controls[1].key[LEFT_KEY	] = ALLEGRO_KEY_A;
 	player_controls[1].key[RIGHT_KEY] = ALLEGRO_KEY_D;
 	player_controls[1].key[ACTION_KEY] = ALLEGRO_KEY_R;
-	player_controls[1].obj = world_objects[1];
+	player_controls[1].obj = world.objects[1];
 
+	// SETUP viewports
+	// --------------------------------------------------------
+	viewports[0] = new viewport_t;
+	viewports[0].x = 0;
+	viewports[0].y = 0;
+	viewports[0].width  = 640;
+	viewports[0].height = 480;
+	viewports[0].offset_x = 0;
+	viewports[0].offset_y = 0;
+
+	assert(viewports[0] !is null);
+	
 	return 0;
 	}
 
 void draw_frame()
 	{
-	al_clear_to_color(ALLEGRO_COLOR(0.5, 0.25, 0.125, 1));
-	al_draw_bitmap(bmp, 50, 50, 0);
-	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
+	al_clear_to_color(ALLEGRO_COLOR(1,1,1, 1));
+	//al_draw_bitmap(bmp, 50, 50, 0);
+//	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
 	al_draw_text(font, ALLEGRO_COLOR(1, 1, 1, 1), 70, 40, ALLEGRO_ALIGN_CENTRE, "Hello!");
+
+	draw2();
+
 	al_flip_display();
+	}
+
+void draw2()
+	{
+	world.draw(viewports[0]);
+	}
+
+void logic()
+	{
+	world.logic();
 	}
 
 void execute()
@@ -543,27 +648,27 @@ void execute()
 						{						
 						if(event.keyboard.keycode == player_data.key[UP_KEY])
 							{
-							writefln("Player %d - UP", i);
+							writefln("Player %d - UP", i+1);
 							player_data.obj.up();
 							}
 						if(event.keyboard.keycode == player_data.key[DOWN_KEY])
 							{
-							writefln("Player %d - DOWN", i);
+							writefln("Player %d - DOWN", i+1);
 							player_data.obj.down();
 							}
 						if(event.keyboard.keycode == player_data.key[LEFT_KEY])
 							{
-							writefln("Player %d - LEFT", i);
+							writefln("Player %d - LEFT", i+1);
 							player_data.obj.left();
 							}
 						if(event.keyboard.keycode == player_data.key[RIGHT_KEY])
 							{
-							writefln("Player %d - RIGHT", i);
+							writefln("Player %d - RIGHT", i+1);
 							player_data.obj.right();
 							}
 						if(event.keyboard.keycode == player_data.key[ACTION_KEY])
 							{
-							writefln("Player %d - ACTION", i);
+							writefln("Player %d - ACTION", i+1);
 							player_data.obj.action();
 							}
 						}
@@ -588,6 +693,7 @@ void execute()
 			}
 		}
 
+		logic();
 		draw_frame();
 		}
 	}
@@ -599,9 +705,6 @@ void terminate() //I think "shutdown" is a standard lib UNIX function. Easier fo
 	{
 		
 	}
-
-
-
 
 void test()
 	{
