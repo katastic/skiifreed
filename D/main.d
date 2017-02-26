@@ -1,12 +1,32 @@
 // SkiiFree'd - KATKO 2017
 //=============================================================================
 
+/*
+	TODO
+		- DRAW TREES in Z-ORDER so they don't overlap wrong (>>>simply sort objec list?) 
+		- Scrolling
+		- Viewports
+		- HOLDING KEYS instead of tapping them? (wait, shouldn't they auto accelerate? So we only want KEYS to mean MODE).
+		- Jumping
+		- Monsters
+	
+
+	NEW FEATURES
+		- New enemies?
+		- New obsticles?
+		- New... stuff?
+		- WEATHER?
+		- Water/ponds/cliffs?
+*/
+
 // http://www.everything2.com/title/Skifree
 
 import std.stdio;
 import std.conv;
 import std.string;
 import std.format; //String.Format like C#?! Nope. Damn, like printf.
+
+import std.random;
 
 pragma(lib, "dallegro5");
 
@@ -118,7 +138,7 @@ void load_resources()
 	
 	player_anim	.load_extra_frame("./data/skii.png");
 	monster_anim.load_extra_frame("./data/mysha.pcx");
-	tree_anim	.load_extra_frame("./data/mysha.pcx");
+	tree_anim	.load_extra_frame("./data/tree.png");
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
 	}
 
@@ -244,13 +264,32 @@ class drawable_object_t : object_t
 		}
 	}
 	
-class tree_t : drawable_object_t
+class large_tree_t : drawable_object_t
+	{
+	this()
+		{
+		trips_you = true;
+		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
+		}
+	}
+
+class small_tree_t : drawable_object_t
+	{
+	this()
+		{
+		trips_you = true;
+		// TODO
+		}
+	}
+
+class dead_tree_t : drawable_object_t
 	{
 	this()
 		{
 		trips_you = true;
 		}
 	}
+
 
 class rock_t : drawable_object_t
 	{
@@ -452,6 +491,20 @@ class viewport_t
 class world_t
 	{
 	drawable_object_t [] objects; //should be drawable_object_t?
+
+	void populate_with_trees()
+		{
+		immutable int number_of_trees = 10;
+		
+		for(int i = 0; i < number_of_trees; i++)
+			{
+			large_tree_t tree = new large_tree_t;
+			tree.x = uniform(0, 640);
+			tree.y = uniform(0, 480);
+		
+			objects ~= tree;
+			}
+		}
  	
 	void draw(viewport_t viewport)
 		{
@@ -563,7 +616,7 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 	// --------------------------------------------------------
 	world = new world_t;
 
-	// Create objects for player's 1 and 2
+	// Create objects for player's 1 and 2 as first two slots
 	// --------------------------------------------------------
 	skier_t player1 = new skier_t(50, 50);
 	skier_t player2 = new skier_t(200, 50);
@@ -574,6 +627,11 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 	world.objects ~= player1; //should be [0]
 	world.objects ~= player2; //should be [1]
 	
+	// Create other objects.
+	// --------------------------------------------------------
+
+	world.populate_with_trees();
+
 	// SETUP player controls
 	// --------------------------------------------------------
 	player_controls[0].key[UP_KEY	] = ALLEGRO_KEY_UP;
