@@ -36,9 +36,14 @@ immutable float maximum_x = 1000F; 	//NYI
 immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
+//player constants
+immutable float speed_change_rate = 1.0F; 	//NYI
+immutable float speed_maximum	  = 10.0F; 	//NYI
+immutable float player_jump_velocity = 10.0F; 	//NYI
+
 //GLOBALS
 //=============================================================================
-ALLEGRO_CONFIG* 		cfg;
+ALLEGRO_CONFIG* 		cfg;  //whats this used for?
 ALLEGRO_DISPLAY* 		display;
 ALLEGRO_EVENT_QUEUE* 	queue;
 
@@ -55,6 +60,11 @@ animation_t jump_anim;
 keyset_t [2] player_controls;
 object_t [] world_objects;
 world_t world;
+
+
+// Is there any way we can have global variables in a NAMESPACE (use a module?)
+// Or is the single dereference NOT a big deal to pass tbe "globals struct"
+// to every main function...
 
 //=============================================================================
 
@@ -111,6 +121,10 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	public:
 	float 		x, y, z; //objects are centered at X/Y (not top-left) so we can easily follow other objects.
 	float		x_vel, y_vel, z_vel; //note Z is used for jumps.
+	
+//	float		angle; // instead of x_vel, y_vel?
+//	float		vel;
+	
 	float		width, height;
 
 	bool trips_you;
@@ -123,6 +137,7 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 		trips_you = false;
 		slows_you_down = false;
 		is_following_another_object = false;
+		
 		}
 		
 	void follow_object(object_t obj)
@@ -289,8 +304,47 @@ class monster_t : drawable_object_t
 
 class skier_t : drawable_object_t
 	{
+	bool is_jumping;
+	bool is_grounded;
+	
+	override void up()
+			{
+			writeln(" - [skier_t] up() recieved.");
+			y_vel += speed_change_rate;
+			if(y_vel > speed_maximum)y_vel = speed_maximum;		
+			}
+
+	override void down()
+			{
+			writeln(" - [skier_t] down() recieved.");
+			y_vel -= speed_change_rate;
+			if(y_vel < 0)y_vel = 0;		
+			}
+
+	override void left()
+			{
+			writeln(" - [skier_t] left() recieved.");
+			}
+
+	override void right()
+			{
+			writeln(" - [skier_t] right() recieved.");
+			}
+
+	override void action()
+			{
+			writeln(" - [skier_t] action() recieved.");
+			if(is_grounded)
+				{
+				is_jumping = true; //needed?
+				z_vel += player_jump_velocity;
+				}
+			}
+
+	
 	override void on_tick()
 		{
+			
 		x += x_vel;
 		y += y_vel;
 		z += z_vel;
@@ -311,11 +365,32 @@ class skier_t : drawable_object_t
 			{
 			z_vel = 0;
 			z = 0;
+			is_grounded = true;
 			}
+			
+		// UPPER BOUNDS
+		if(x >= maximum_x)
+			{
+			x_vel = 0;
+			x = maximum_x-1;
+			}
+
+		if(y >= maximum_y)
+			{
+			y_vel = 0;
+			y = maximum_y-1;
+			}
+
+		if(x >= maximum_z)
+			{
+			z_vel = 0;
+			z = maximum_z-1;
+			}
+		
 		}
 	}
 	
-class player_t : skier_t
+class player_t : skier_t //IS THIS NEEDED, or just a skier_t???
 	{
 
 	}
@@ -371,7 +446,18 @@ bool initialize()
 		assert(0, "The system Allegro version does not match the version of this binding!"); //why didn't they do this as an assert to begin with?
 		}
 		
-	cfg = al_load_config_file("test.ini");
+
+/*	
+	what was this supposed to be used for??
+	
+	
+cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
+	if (cfg == null)
+		{
+		assert(0, "OMG WHERE CONFIG FILE.");
+		}
+	*/
+	
 	display = al_create_display(500, 500);
 	queue = al_create_event_queue();
 
@@ -400,21 +486,23 @@ bool initialize()
 	
 	// Create objects for player's 1 and 2
 	// --------------------------------------------------------
-	player_t player1;
-	player_t player2;
-	
+	player_t player1 = new player_t;
+	player_t player2 = new player_t;
 	world_objects ~= player1; //should be [0]
 	world_objects ~= player2; //should be [1]
-
+	
 	// SETUP player controls
 	// --------------------------------------------------------
-	player_controls[0].key[0] = 0;
+	player_controls[0].key[UP_KEY] = ALLEGRO_KEY_UP;
 	player_controls[0].key[DOWN_KEY	] = ALLEGRO_KEY_DOWN;
 	player_controls[0].key[LEFT_KEY	] = ALLEGRO_KEY_LEFT;
 	player_controls[0].key[RIGHT_KEY] = ALLEGRO_KEY_RIGHT;
 	player_controls[0].key[ACTION_KEY] = ALLEGRO_KEY_SPACE;
 	player_controls[0].obj = world_objects[0];
 	
+	//player_controls[0].obj.up();
+	//	(world_objects[0]).up();
+
 	player_controls[1].key[UP_KEY	] = ALLEGRO_KEY_W;
 	player_controls[1].key[DOWN_KEY	] = ALLEGRO_KEY_S;
 	player_controls[1].key[LEFT_KEY	] = ALLEGRO_KEY_A;
@@ -425,6 +513,15 @@ bool initialize()
 	return 0;
 	}
 
+void draw_frame()
+	{
+	al_clear_to_color(ALLEGRO_COLOR(0.5, 0.25, 0.125, 1));
+	al_draw_bitmap(bmp, 50, 50, 0);
+	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
+	al_draw_text(font, ALLEGRO_COLOR(1, 1, 1, 1), 70, 40, ALLEGRO_ALIGN_CENTRE, "Hello!");
+	al_flip_display();
+	}
+
 void execute()
 	{
 	bool exit = false;
@@ -432,41 +529,66 @@ void execute()
 		{
 		ALLEGRO_EVENT event;
 		while(al_get_next_event(queue, &event))
-		{
-			switch(event.type)
 			{
-				case ALLEGRO_EVENT_DISPLAY_CLOSE:
+			switch(event.type)
 				{
+				case ALLEGRO_EVENT_DISPLAY_CLOSE:
+					{
 					exit = true;
 					break;
-				}
+					}
 				case ALLEGRO_EVENT_KEY_DOWN:
-				{
-					switch(event.keyboard.keycode)
 					{
+					foreach(int i, keyset_t player_data; player_controls)
+						{						
+						if(event.keyboard.keycode == player_data.key[UP_KEY])
+							{
+							writefln("Player %d - UP", i);
+							player_data.obj.up();
+							}
+						if(event.keyboard.keycode == player_data.key[DOWN_KEY])
+							{
+							writefln("Player %d - DOWN", i);
+							player_data.obj.down();
+							}
+						if(event.keyboard.keycode == player_data.key[LEFT_KEY])
+							{
+							writefln("Player %d - LEFT", i);
+							player_data.obj.left();
+							}
+						if(event.keyboard.keycode == player_data.key[RIGHT_KEY])
+							{
+							writefln("Player %d - RIGHT", i);
+							player_data.obj.right();
+							}
+						if(event.keyboard.keycode == player_data.key[ACTION_KEY])
+							{
+							writefln("Player %d - ACTION", i);
+							player_data.obj.action();
+							}
+						}
+							
+					switch(event.keyboard.keycode)
+						{					
 						case ALLEGRO_KEY_ESCAPE:
-						{
+							{
 							exit = true;
 							break;
-						}
+							}
 						default:
+						}
+					break;
 					}
-					break;
-				}
 				case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
-				{
-					exit = true;
+					{
+				//	exit = true;
 					break;
-				}
+					}
 				default:
 			}
 		}
 
-		al_clear_to_color(ALLEGRO_COLOR(0.5, 0.25, 0.125, 1));
-		al_draw_bitmap(bmp, 50, 50, 0);
-		al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
-		al_draw_text(font, ALLEGRO_COLOR(1, 1, 1, 1), 70, 40, ALLEGRO_ALIGN_CENTRE, "Hello!");
-		al_flip_display();
+		draw_frame();
 		}
 	}
 
@@ -479,10 +601,19 @@ void terminate() //I think "shutdown" is a standard lib UNIX function. Easier fo
 	}
 
 
+
+
+void test()
+	{
+	object_t x = new object_t; //WHAT? I have to do this?
+	assert(x !is null);
+	x.up();
+	}
+
 //=============================================================================
 int main(char[][] args)
 	{
-	
+		
 	return al_run_allegro(
 		{
 		initialize();
