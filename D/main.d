@@ -27,6 +27,7 @@ import std.string;
 import std.format; //String.Format like C#?! Nope. Damn, like printf.
 
 import std.random;
+import std.algorithm;
 
 pragma(lib, "dallegro5");
 
@@ -48,7 +49,6 @@ import allegro5.allegro_font;
 import allegro5.allegro_ttf;
 import allegro5.allegro_color;
 
-
 // CONSTANTS
 //=============================================================================
 immutable float JUMP_VELOCITY = 2.2F; //NYI
@@ -59,9 +59,13 @@ immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
 //player constants
-immutable float speed_change_rate = .05F; 	//NYI
-immutable float speed_maximum	  =  1F; 	//NYI
+immutable float SPEED_FACTOR = 5.0F; //scales UP/down all speeds.
+immutable float speed_change_rate = .1F * SPEED_FACTOR; 	//NYI
+immutable float speed_maximum	  =  1F * SPEED_FACTOR; 	//NYI
 immutable float player_jump_velocity = 10.0F; 	//NYI
+
+immutable int SCREEN_W = 1200;
+immutable int SCREEN_H = 600;
 
 //GLOBALS
 //=============================================================================
@@ -82,11 +86,32 @@ animation_t jump_anim;
 keyset_t [2] player_controls;
 //object_t [] world_objects;
 world_t world;
-viewport_t [1] viewports;
+viewport_t [2] viewports;
+ALLEGRO_TIMER *fps_timer;
+
+int mouse_x; //cached, obviously. for helper routines.
+int mouse_y;
+
+xy_pair target;
+
+struct xy_pair
+	{
+	int x;
+	int y;
+	}
 
 // Is there any way we can have global variables in a NAMESPACE (use a module?)
 // Or is the single dereference NOT a big deal to pass tbe "globals struct"
 // to every main function...
+
+struct statistics_t
+	{
+	int number_of_drawn_objects;
+	int fps;
+	int frames_passed;
+	}
+
+statistics_t stats;
 
 //=============================================================================
 
@@ -151,8 +176,13 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	
 //	float		angle; // instead of x_vel, y_vel?
 //	float		vel;
-	
 	float		width, height;
+	
+	// Collision box. e.g. for trees, it's the stump, not the whole sprite.
+	int	bounding_x;
+	int	bounding_y;
+	int	bounding_w;
+	int	bounding_h;
 
 	bool trips_you;
 	bool slows_you_down;
@@ -172,7 +202,6 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 		trips_you = false;
 		slows_you_down = false;
 		is_following_another_object = false;
-		
 		}
 		
 	void follow_object(object_t obj)
@@ -184,18 +213,24 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	bool is_colliding_with(object_t obj)
 		{
 		// I freakin' love D.
-		alias x2 = obj.x;
-		alias y2 = obj.y;
-		alias width2 = obj.width;
-		alias height2 = obj.height;
+		alias x1 = bounding_x;
+		alias y1 = bounding_y;
+		alias w1 = bounding_w;
+		alias h1 = bounding_h;
 		
+		alias x2 = obj.bounding_x;
+		alias y2 = obj.bounding_y;
+		alias w2 = obj.bounding_w;
+		alias h2 = obj.bounding_h;
+		
+				
 		/* from https://wiki.allegro.cc/index.php?title=Bounding_Box   GO ALLEGRO GO
 		*/
 			
-		if(	x  > x2 + width2  - 1 	|| 
-			y  > y2 + height2 - 1 	||
-			x2 > x  + width   - 1	||
-			y2 > y  + height  - 1)
+		if(	x1 > x2 + w2 - 1 	|| 
+			y1 > y2 + h2 - 1 	||
+			x2 > x1 + w1 - 1	||
+			y2 > y1 + w1 - 1)
 			{
 			return false;
 			}
@@ -249,18 +284,21 @@ class drawable_object_t : object_t
 		animation = anim;
 		}
 
-
 	void draw(viewport_t viewport)
-		{
-					
-//			writeln("drawing object...");
-		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
-			
+		{		
 		alias v = viewport;
-		//int camera_offset_x, int camera_offset_y, int clip_x, int clip_y, int clip_w, int clip_h) //or just sent it a viewport_t reference?
+		
+		//WARNING: CONFIRM THESE.
+		if(x < 0 + v.offset_x + width)return;	
+		if(y < 0 + v.offset_y + height)return;	
+		if(x > SCREEN_W + v.offset_x + width)return;	
+		if(y > SCREEN_H + v.offset_y + height)return;	
+		
+		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");	
+
 		animation.draw(0, 
-			this.x - v.offset_x, 
-			this.y - v.offset_y); //clipping not used yet. just pass along the viewport again?
+			this.x - v.offset_x + v.x, 
+			this.y - v.offset_y + v.y); //clipping not used yet. just pass along the viewport again?
 		}
 	}
 	
@@ -289,7 +327,6 @@ class dead_tree_t : drawable_object_t
 		trips_you = true;
 		}
 	}
-
 
 class rock_t : drawable_object_t
 	{
@@ -377,7 +414,7 @@ class monster_t : drawable_object_t
 			}		
 		}
 	}
-
+	
 class skier_t : drawable_object_t
 	{
 	bool is_jumping;
@@ -404,7 +441,7 @@ class skier_t : drawable_object_t
 			{
 			writeln(" - [skier_t] left() recieved.");
 			x_vel -= speed_change_rate;
-			if(x_vel < 0)x_vel = 0;		
+			if(x_vel < -speed_maximum)x_vel = -speed_maximum;		
 			}
 
 	override void right()
@@ -469,10 +506,8 @@ class skier_t : drawable_object_t
 			}
 
 		writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
-		
 		}
 	}
-	
 	
 class viewport_t
 	{
@@ -486,21 +521,41 @@ class viewport_t
 	int offset_x;
 	int offset_y;
 	}
-	
 
 class world_t
 	{
 	drawable_object_t [] objects; //should be drawable_object_t?
 
+	// Call this ONCE (or every time new objects appear)
+	// Or should we just have different lists for different objects? (so all trees are inherently on a different z-layer from players, etc.)
+	void sort_objects_list() //Sorts ALL BUT the first two objects? how?
+		{ //easiest way is to simply call before adding the players...
+			// or, set the players to the MOST negative Y position until after sorting.
+			// WE COULD EVEN STORE THE VALUES TEMPORARILY!
+		// WARNING: ASsumes players 1 and 2 EXIST and are first already.
+		float temp_p0_y = objects[0].y;
+		float temp_p1_y = objects[1].y;
+		objects[0].y = -1000;
+		objects[1].y =  -900;
+		
+		alias comparison = (o1, o2) => o1.y < o2.y; //should be ordered ascending, ala [1,2,3,4]
+		
+		objects.sort!(comparison); //COULD THIS BREAK in a way we don't anticipate?
+		// as long as trees are AFTER these objects, and 
+		
+		objects[0].y = temp_p0_y;
+		objects[1].y = temp_p1_y;		
+		}
+
 	void populate_with_trees()
 		{
-		immutable int number_of_trees = 10;
+		immutable int number_of_trees = 1000;
 		
 		for(int i = 0; i < number_of_trees; i++)
 			{
 			large_tree_t tree = new large_tree_t;
-			tree.x = uniform(0, 640);
-			tree.y = uniform(0, 480);
+			tree.x = uniform(0, maximum_x);
+			tree.y = uniform(0, maximum_y);
 		
 			objects ~= tree;
 			}
@@ -569,8 +624,6 @@ bool initialize()
 
 		assert(0, "The system Allegro version does not match the version of this binding!"); //why didn't they do this as an assert to begin with?
 		}
-		
-
 /*	
 	what was this supposed to be used for??
 	
@@ -582,7 +635,16 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 		}
 	*/
 	
-	display = al_create_display(640, 480);
+static if (false) // MULTISAMPLING. Not sure if helpful.
+	{
+	with (ALLEGRO_DISPLAY_OPTIONS)
+		{
+		al_set_new_display_option(ALLEGRO_SAMPLE_BUFFERS, 1, ALLEGRO_REQUIRE);
+		al_set_new_display_option(ALLEGRO_SAMPLES, 8, ALLEGRO_REQUIRE);
+		}
+	}
+
+	display = al_create_display(SCREEN_W, SCREEN_H);
 	queue	= al_create_event_queue();
 
 	if (!al_install_keyboard())      assert(0, "al_install_keyboard failed!");
@@ -618,7 +680,7 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 
 	// Create objects for player's 1 and 2 as first two slots
 	// --------------------------------------------------------
-	skier_t player1 = new skier_t(50, 50);
+	skier_t player1 = new skier_t( 50, 50);
 	skier_t player2 = new skier_t(200, 50);
 
 	player1.set_animation(player_anim);	
@@ -653,35 +715,148 @@ cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 	viewports[0] = new viewport_t;
 	viewports[0].x = 0;
 	viewports[0].y = 0;
-	viewports[0].width  = 640;
-	viewports[0].height = 480;
+	viewports[0].width  = SCREEN_W/2;// - 1;
+	viewports[0].height = SCREEN_H;
 	viewports[0].offset_x = 0;
 	viewports[0].offset_y = 0;
 
+	viewports[1] = new viewport_t;
+	viewports[1].x = SCREEN_W/2;
+	viewports[1].y = 0;
+	viewports[1].width  = SCREEN_W/2;//[ - 1;
+	viewports[1].height = SCREEN_H;
+	viewports[1].offset_x = 0;
+	viewports[1].offset_y = 0;
+
 	assert(viewports[0] !is null);
 	
+	// Finish object setup
+	// --------------------------------------------------------
+	
+	world.sort_objects_list(); //sort trees z-ordering above players, and higher trees behind lower trees. (drawn first.) 
+	target.x = 590;
+	target.y = 300;
+
+	// FPS
+	// --------------------------------------------------------
+	ALLEGRO_TIMER *fps_timer = al_create_timer(1.0f);
+	al_register_event_source(queue, al_get_timer_event_source(fps_timer));
+	al_start_timer(fps_timer);
+	
+
 	return 0;
 	}
 
 void draw_frame()
 	{
-	al_clear_to_color(ALLEGRO_COLOR(1,1,1, 1));
+	reset_clipping();
+	al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
 	//al_draw_bitmap(bmp, 50, 50, 0);
 //	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
 	al_draw_text(font, ALLEGRO_COLOR(1, 1, 1, 1), 70, 40, ALLEGRO_ALIGN_CENTRE, "Hello!");
 
 	draw2();
 
+
+
 	al_flip_display();
+	}
+
+void reset_clipping()
+	{
+	al_set_clipping_rectangle(0,0, SCREEN_W-1, SCREEN_H-1);
+	}
+
+void draw_target_dot(int x, int y)
+	{
+	al_draw_pixel(x + 0.5, y + 0.5, al_map_rgb(0,1,0));
+	
+//	al_draw_pixel(
+//				viewports[0].x + viewports[0].width  - 1 + 0.5,
+//				viewports[0].y + viewports[0].height - 1 + 0.5,
+//				al_map_rgb(0,1,0));
+
+	immutable r = 2; //radius
+	al_draw_rectangle(x - r + 0.5f, y - r + 0.5f, x + r + 0.5f, y + r + 0.5f, al_map_rgb(0,1,0), 1);
 	}
 
 void draw2()
 	{
+	
+static if(true) //draw left viewport
+	{
+	al_set_clipping_rectangle(
+		viewports[0].x, 
+		viewports[0].y, 
+		viewports[0].x + viewports[0].width ,  //-1
+		viewports[0].y + viewports[0].height); //-1
+	al_clear_to_color(ALLEGRO_COLOR(1,1,1, 1));
 	world.draw(viewports[0]);
+	}
+
+static if(true) //draw right viewport
+	{
+	al_set_clipping_rectangle(
+		viewports[1].x, 
+		viewports[1].y, 
+		viewports[1].x + viewports[1].width  - 1, 
+		viewports[1].y + viewports[1].height - 1);
+	al_clear_to_color(ALLEGRO_COLOR(.8,.8,.8, 1));
+	world.draw(viewports[1]);
+	}
+	
+	//Viewport separator
+static if(false)
+	{
+	al_draw_line(
+		SCREEN_W/2 + 0.5, 
+		0 + 0.5, 
+		SCREEN_W/2 + 0.5, 
+		SCREEN_H + 0.5,
+		al_map_rgb(0,0,0), 
+		10);
+	}
+	// Draw FPS and other text
+	reset_clipping();
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
+	text_helper(true); 
+
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
+
+// DRAW MOUSE PIXEL HELPER/FINDER
+	draw_target_dot(mouse_x, mouse_y);
+	draw_target_dot(target.x, target.y);
+	}
+
+/// For each call, this increments and returns a new Y coordinate for lower text.
+int text_helper(bool do_reset)
+	{
+	static int number_of_entries = -1;
+	
+	number_of_entries++;
+	immutable int text_height = 20;
+	immutable int starting_height = 20;
+	
+	if(do_reset)number_of_entries = 0;
+	
+	return starting_height + text_height*number_of_entries;
+	}
+
+void calculate_camera()
+	{
+	// Calculate camera
+	viewports[0].offset_x = to!(int)(world.objects[0].x)-(viewports[0].width/2);
+	viewports[0].offset_y = to!(int)(world.objects[0].y)-(viewports[0].height/2);
+
+	viewports[1].offset_x = to!(int)(world.objects[1].x)-(viewports[1].width/2);
+	viewports[1].offset_y = to!(int)(world.objects[1].y)-(viewports[1].height/2);
 	}
 
 void logic()
 	{
+	calculate_camera();
 	world.logic();
 	}
 
@@ -702,8 +877,25 @@ void execute()
 					}
 				case ALLEGRO_EVENT_KEY_DOWN:
 					{
+					if(event.keyboard.keycode == ALLEGRO_KEY_I)
+						{
+						target.y--;
+						}
+					if(event.keyboard.keycode == ALLEGRO_KEY_K)
+						{
+						target.y++;
+						}
+					if(event.keyboard.keycode == ALLEGRO_KEY_J)
+						{
+						target.x--;
+						}
+					if(event.keyboard.keycode == ALLEGRO_KEY_L)
+						{
+						target.x++;
+						}
+
 					foreach(int i, keyset_t player_data; player_controls)
-						{						
+						{
 						if(event.keyboard.keycode == player_data.key[UP_KEY])
 							{
 							writefln("Player %d - UP", i+1);
@@ -740,19 +932,40 @@ void execute()
 							}
 						default:
 						}
+						break;
+					
+					}
+					
+				case ALLEGRO_EVENT_MOUSE_AXES:
+					{
+					mouse_x = event.mouse.x;
+					mouse_y = event.mouse.y;
 					break;
 					}
+
 				case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
 					{
 				//	exit = true;
 					break;
 					}
+				
+				case ALLEGRO_EVENT_TIMER:
+					{
+					//if(event.timer.source == fps_timer)
+						{
+						stats.fps = stats.frames_passed;
+						stats.frames_passed = 0;
+						}
+					break;
+					}
+				
 				default:
 			}
 		}
 
 		logic();
 		draw_frame();
+		stats.frames_passed++;
 		}
 	}
 
@@ -782,6 +995,4 @@ int main(char[][] args)
 		terminate();
 		return 0;
 		} );
-
-
 	}
