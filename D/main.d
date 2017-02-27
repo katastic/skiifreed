@@ -117,15 +117,29 @@ statistics_t stats;
 
 class animation_t
 	{
+	bool has_loaded_a_frame;
 	ALLEGRO_BITMAP *[] frames;
 	string [] names;
 	
+	int get_width()
+		{
+		assert(has_loaded_a_frame, "Did you remember to ADD a frame before calling get_width()?");
+		return al_get_bitmap_width(frames[0]);
+		}
+		
+	int get_height()
+		{
+		assert(has_loaded_a_frame, "Did you remember to ADD a frame before calling get_height()?");
+		return al_get_bitmap_height(frames[0]);
+		}
+
 	void load_extra_frame(string path)
 		{
 		ALLEGRO_BITMAP *extra_frame = al_load_bitmap( toStringz(path));
 		frames ~= extra_frame;
 		//names = to!string(); 
 		names ~= "OOPS."; //filler, what happens if not unique? Return first result?
+		has_loaded_a_frame = true;
 		}
 		
 	void load_extra_frame(string path, string name)
@@ -133,6 +147,7 @@ class animation_t
 		ALLEGRO_BITMAP *extra_frame = al_load_bitmap( toStringz(path));
 		frames ~= extra_frame;
 		names ~= name;
+		has_loaded_a_frame = true;
 		}
 		
 	ALLEGRO_BITMAP* get_frame_by_number(int i)
@@ -148,6 +163,7 @@ class animation_t
 	
 	void draw(int frame, float x, float y)
 		{
+		stats.number_of_drawn_objects++;
 		al_draw_bitmap(frames[frame], x, y, 0);
 		}
 		
@@ -289,10 +305,10 @@ class drawable_object_t : object_t
 		alias v = viewport;
 		
 		//WARNING: CONFIRM THESE.
-		if(x < 0 + v.offset_x + width)return;	
-		if(y < 0 + v.offset_y + height)return;	
-		if(x > SCREEN_W + v.offset_x + width)return;	
-		if(y > SCREEN_H + v.offset_y + height)return;	
+		if(x + width/2  - v.offset_x < 0)return;	
+		if(y + height/2 - v.offset_y < 0)return;	
+		if(x - width/2  - v.offset_x  > SCREEN_W)return;	
+		if(y - height/2 - v.offset_y  > SCREEN_H)return;	
 		
 		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");	
 
@@ -306,8 +322,13 @@ class large_tree_t : drawable_object_t
 	{
 	this()
 		{
+
+			
 		trips_you = true;
 		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
+
+		width = tree_anim.get_width();
+		height = tree_anim.get_height();
 		}
 	}
 
@@ -421,7 +442,15 @@ class skier_t : drawable_object_t
 	bool is_grounded;
 
 	this(){}
-	this(int x, int y){this.x = x; this.y = y;}
+	this(int x, int y)
+		{
+		this.x = x; 
+		this.y = y;
+		
+		
+		width = player_anim.get_width();
+		height = player_anim.get_height();
+		}
 	
 	override void up()
 			{
@@ -747,8 +776,14 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	return 0;
 	}
 
+void start_frame()	
+	{
+	stats.number_of_drawn_objects=0;
+	}
+
 void draw_frame()
 	{
+	start_frame();
 	reset_clipping();
 	al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
 	//al_draw_bitmap(bmp, 50, 50, 0);
@@ -820,14 +855,14 @@ static if(false)
 	reset_clipping();
 	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
 	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
-	text_helper(true); 
-
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
 	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
+	text_helper(true);  //reset
+	
 // DRAW MOUSE PIXEL HELPER/FINDER
 	draw_target_dot(mouse_x, mouse_y);
 	draw_target_dot(target.x, target.y);
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
 	}
 
 /// For each call, this increments and returns a new Y coordinate for lower text.
