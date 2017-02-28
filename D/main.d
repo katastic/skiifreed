@@ -3,12 +3,14 @@
 
 /*
 	TODO
-		- DRAW TREES in Z-ORDER so they don't overlap wrong (>>>simply sort objec list?) 
-		- Scrolling
-		- Viewports
-		- HOLDING KEYS instead of tapping them? (wait, shouldn't they auto accelerate? So we only want KEYS to mean MODE).
-		- Jumping
+		+ DRAW TREES in Z-ORDER so they don't overlap wrong (>>>simply sort objec list?) 
+		+ Scrolling
+		+ Viewports
+		- HOLDING KEYS instead of tapping them? 
+			- (wait, shouldn't they auto accelerate? So we only want KEYS to mean MODE).
+		- Jumping, ramps, other objects
 		- Monsters
+		- BOUNDING COLLISION BOXES (also draw collision boxes?)
 	
 
 	NEW FEATURES
@@ -54,7 +56,7 @@ import allegro5.allegro_color;
 immutable float JUMP_VELOCITY = 2.2F; //NYI
 
 //world dimensions
-immutable float maximum_x = 1000F; 	//NYI
+immutable float maximum_x = 2000F; 	//NYI
 immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
@@ -76,6 +78,7 @@ ALLEGRO_EVENT_QUEUE* 	queue;
 ALLEGRO_COLOR 			color1;
 ALLEGRO_COLOR 			color2;
 ALLEGRO_BITMAP* 		bmp;
+//ALLEGRO_BITMAP* 		snow_bmp;
 ALLEGRO_FONT* 			font;
 
 animation_t player_anim;
@@ -534,7 +537,7 @@ class skier_t : drawable_object_t
 			z = maximum_z-1;
 			}
 
-		writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
+		//writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
 		}
 	}
 	
@@ -554,6 +557,31 @@ class viewport_t
 class world_t
 	{
 	drawable_object_t [] objects; //should be drawable_object_t?
+
+	ALLEGRO_BITMAP *snow_bmp;
+
+	void draw_background(viewport_t v)
+		{
+		//texture width/height alias
+		int tw = al_get_bitmap_width  (snow_bmp);
+		int th = al_get_bitmap_height (snow_bmp);			
+		int i = 0;
+		int j = 0;
+		while(i*tw < v.width*2 + v.offset_x) //is this the RIGHT?
+			{
+			j=0;
+			while(j*th < v.height*2 + v.offset_y) //is this the RIGHT?
+				{
+				al_draw_bitmap(
+					snow_bmp, 
+					0 + v.x - v.offset_x - tw/2 + tw*i, 
+					0 + v.y - v.offset_y - th/2 + th*j, 
+					0);
+				j++;
+				}
+			i++;
+			}
+		}
 
 	// Call this ONCE (or every time new objects appear)
 	// Or should we just have different lists for different objects? (so all trees are inherently on a different z-layer from players, etc.)
@@ -592,6 +620,7 @@ class world_t
  	
 	void draw(viewport_t viewport)
 		{
+		draw_background(viewport);
 		foreach(o; objects)
 			{
 			//do shit.
@@ -656,8 +685,7 @@ bool initialize()
 /*	
 	what was this supposed to be used for??
 	
-	
-cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
+	cfg = al_load_config_file("test.ini"); // THIS ISN'T HERE, is it?
 	if (cfg == null)
 		{
 		assert(0, "OMG WHERE CONFIG FILE.");
@@ -687,7 +715,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	al_register_event_source(queue, al_get_keyboard_event_source());
 	al_register_event_source(queue, al_get_mouse_event_source());
 	
-	bmp = al_load_bitmap("./data/mysha.pcx");
+	bmp 		= al_load_bitmap("./data/mysha.pcx");
 	font = al_load_font("./data/DejaVuSans.ttf", 18, 0);
 
 	with(ALLEGRO_BLEND_MODE)
@@ -706,6 +734,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	// SETUP world
 	// --------------------------------------------------------
 	world = new world_t;
+	world.snow_bmp 	= al_load_bitmap("./data/snow.jpg");
 
 	// Create objects for player's 1 and 2 as first two slots
 	// --------------------------------------------------------
@@ -786,8 +815,8 @@ void draw_frame()
 	start_frame();
 	reset_clipping();
 	al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
-	//al_draw_bitmap(bmp, 50, 50, 0);
-//	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
+	//	al_draw_bitmap(bmp, 50, 50, 0);
+	//	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
 	al_draw_text(font, ALLEGRO_COLOR(1, 1, 1, 1), 70, 40, ALLEGRO_ALIGN_CENTRE, "Hello!");
 
 	draw2();
@@ -857,6 +886,11 @@ static if(false)
 	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
 	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
 	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
+	
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel);
+	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel);
+	
+	
 	text_helper(true);  //reset
 	
 // DRAW MOUSE PIXEL HELPER/FINDER
