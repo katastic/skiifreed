@@ -1,6 +1,5 @@
 // SkiiFree'd - KATKO 2017
 //=============================================================================
-
 /*
 	TODO
 		+ DRAW TREES in Z-ORDER so they don't overlap wrong (>>>simply sort objec list?) 
@@ -11,7 +10,6 @@
 		- Jumping, ramps, other objects
 		- Monsters
 		- BOUNDING COLLISION BOXES (also draw collision boxes?)
-	
 
 	NEW FEATURES
 		- New enemies?
@@ -20,7 +18,6 @@
 		- WEATHER?
 		- Water/ponds/cliffs?
 */
-
 // http://www.everything2.com/title/Skifree
 
 import std.stdio;
@@ -69,6 +66,41 @@ immutable float player_jump_velocity = 10.0F; 	//NYI
 immutable int SCREEN_W = 1200;
 immutable int SCREEN_H = 600;
 
+
+immutable float [7] v_speeds = 
+	[
+	0, 
+	0.1F/4, 
+	0.1F/2, 
+	0.1F,
+	0.1F/2,
+	0.1F/4,
+	0
+	];
+
+immutable float [7] h_speeds = 
+	[
+	-0.1F, 
+	-0.1F/2, 
+	-0.1F/4, 
+	0,
+	0.1F/4,
+	0.1F/2,
+	0.1F
+	];
+
+immutable float [7] v_to_h_conversion = 
+	[
+	-1.0, 
+	-0.6, 
+	-0.2, 
+	 0.0,
+	 0.2,
+	 0.6,
+	 1.0
+	];
+
+
 //GLOBALS
 //=============================================================================
 ALLEGRO_CONFIG* 		cfg;  //whats this used for?
@@ -78,7 +110,6 @@ ALLEGRO_EVENT_QUEUE* 	queue;
 ALLEGRO_COLOR 			color1;
 ALLEGRO_COLOR 			color2;
 ALLEGRO_BITMAP* 		bmp;
-//ALLEGRO_BITMAP* 		snow_bmp;
 ALLEGRO_FONT* 			font;
 
 animation_t player_anim;
@@ -87,7 +118,6 @@ animation_t tree_anim;
 animation_t jump_anim;
 
 keyset_t [2] player_controls;
-//object_t [] world_objects;
 world_t world;
 viewport_t [2] viewports;
 ALLEGRO_TIMER *fps_timer;
@@ -192,7 +222,8 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	public:
 	float 		x, y, z; //objects are centered at X/Y (not top-left) so we can easily follow other objects.
 	float		x_vel, y_vel, z_vel; //note Z is used for jumps.
-	
+
+	int direction; // 0 is straight down.
 //	float		angle; // instead of x_vel, y_vel?
 //	float		vel;
 	float		width, height;
@@ -210,6 +241,8 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 
 	this()
 		{
+			
+		direction=3; //far right horizontal.
 		x = 0;
 		y = 0;
 		z = 0;
@@ -242,7 +275,6 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 		alias w2 = obj.bounding_w;
 		alias h2 = obj.bounding_h;
 		
-				
 		/* from https://wiki.allegro.cc/index.php?title=Bounding_Box   GO ALLEGRO GO
 		*/
 			
@@ -324,9 +356,7 @@ class drawable_object_t : object_t
 class large_tree_t : drawable_object_t
 	{
 	this()
-		{
-
-			
+		{	
 		trips_you = true;
 		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
 
@@ -450,37 +480,41 @@ class skier_t : drawable_object_t
 		this.x = x; 
 		this.y = y;
 		
-		
-		width = player_anim.get_width();
+		width  = player_anim.get_width();
 		height = player_anim.get_height();
 		}
 	
 	override void up()
 			{
 			writeln(" - [skier_t] up() recieved.");
-			y_vel -= speed_change_rate;
-			if(y_vel < 0)y_vel = 0;		
+			//y_vel -= speed_change_rate;
+			//if(y_vel < 0)y_vel = 0;		
 			}
 
 	override void down()
 			{
 			writeln(" - [skier_t] down() recieved.");
-			y_vel += speed_change_rate;
-			if(y_vel > speed_maximum)y_vel = speed_maximum;		
+			direction=0;
+			//y_vel += speed_change_rate;
+			//if(y_vel > speed_maximum)y_vel = speed_maximum;		
 			}
 
 	override void left()
 			{
 			writeln(" - [skier_t] left() recieved.");
-			x_vel -= speed_change_rate;
-			if(x_vel < -speed_maximum)x_vel = -speed_maximum;		
+			direction--;
+			if(direction < -3)direction = -3;
+			//x_vel -= speed_change_rate;
+			//if(x_vel < -speed_maximum)x_vel = -speed_maximum;		
 			}
 
 	override void right()
 			{
 			writeln(" - [skier_t] right() recieved.");
-			x_vel += speed_change_rate;
-			if(x_vel > speed_maximum)x_vel = speed_maximum;		
+			direction++;
+			if(direction > 3)direction = 3;
+			//x_vel += speed_change_rate;
+			//if(x_vel > speed_maximum)x_vel = speed_maximum;		
 			}
 
 	override void action()
@@ -495,48 +529,31 @@ class skier_t : drawable_object_t
 
 	override void on_tick()
 		{
+//		writeln("Direction[", direction,"]");
+//		x_vel += h_speeds[direction+3];
+
+// FIX ME <-----------
+
+		y_vel += v_speeds[direction+3];
+		x_vel += y_vel*v_to_h_conversion[direction+3]*.05;
+	
+		if(y_vel > 0)y_vel -= 0.01F;
+		
+		if(x_vel > 0)x_vel -= 0.08F;
+		if(x_vel < 0)x_vel += 0.08F;
+	
 		x += x_vel;
 		y += y_vel;
 		z += z_vel;
 		
-		if(x < 0)
-			{
-			x_vel = 0;
-			x = 0;
-			}
-
-		if(y < 0)
-			{
-			y_vel = 0;
-			y = 0;
-			}
-
-		if(z < 0)
-			{
-			z_vel = 0;
-			z = 0;
-			is_grounded = true;
-			}
+		if(x < 0){x_vel = 0; x = 0;}
+		if(y < 0){y_vel = 0; y = 0;}
+		if(z < 0){z_vel = 0; z = 0; is_grounded = true;}
 			
 		// UPPER BOUNDS
-		if(x >= maximum_x)
-			{
-			x_vel = 0;
-			x = maximum_x-1;
-			}
-
-		if(y >= maximum_y)
-			{
-			y_vel = 0;
-			y = maximum_y-1;
-			}
-
-		if(x >= maximum_z)
-			{
-			z_vel = 0;
-			z = maximum_z-1;
-			}
-
+		if(x >= maximum_x){x_vel = 0; x = maximum_x-1;}
+		if(y >= maximum_y){y_vel = 0; y = maximum_y-1;}
+		if(x >= maximum_z){z_vel = 0; z = maximum_z-1;}
 		//writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
 		}
 	}
@@ -623,7 +640,6 @@ class world_t
 		draw_background(viewport);
 		foreach(o; objects)
 			{
-			//do shit.
 			o.draw(viewport);
 			}
 		}
@@ -834,11 +850,6 @@ void reset_clipping()
 void draw_target_dot(int x, int y)
 	{
 	al_draw_pixel(x + 0.5, y + 0.5, al_map_rgb(0,1,0));
-	
-//	al_draw_pixel(
-//				viewports[0].x + viewports[0].width  - 1 + 0.5,
-//				viewports[0].y + viewports[0].height - 1 + 0.5,
-//				al_map_rgb(0,1,0));
 
 	immutable r = 2; //radius
 	al_draw_rectangle(x - r + 0.5f, y - r + 0.5f, x + r + 0.5f, y + r + 0.5f, al_map_rgb(0,1,0), 1);
@@ -882,15 +893,13 @@ static if(false)
 	}
 	// Draw FPS and other text
 	reset_clipping();
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
-	
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel);
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel);
-	
-	
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
+		
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel);
 	text_helper(true);  //reset
 	
 // DRAW MOUSE PIXEL HELPER/FINDER
