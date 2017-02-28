@@ -58,13 +58,18 @@ immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
 //player constants
-immutable float SPEED_FACTOR = 3.0F; //scales UP/down all speeds.
+immutable float SPEED_FACTOR = 4.0F; //scales UP/down all speeds.
 immutable float speed_change_rate = .1F * SPEED_FACTOR; 	//NYI
-immutable float speed_maximum	  =  1F * SPEED_FACTOR; 	//NYI
+immutable float speed_maximum	  =  1.3F * SPEED_FACTOR; 	//NYI
 immutable float player_jump_velocity = 10.0F; 	//NYI
 
-immutable int SCREEN_W = 1200;
-immutable int SCREEN_H = 600;
+
+// Should this be IMMUTABLE? Are there any UPDATED DEPENDANT CONSTANTS we'll need to UPDATE
+// once this changes?
+// We COULD have a "dependant variables" class that auto-updates the chain of constants
+// whenever the top variable change. a TREE STRUCTURE. Hmm.... that could be fun to write...
+int SCREEN_W = 1200;
+int SCREEN_H = 600;
 
 
 immutable float [7] v_speeds = 
@@ -92,11 +97,11 @@ immutable float [7] h_speeds =
 immutable float [7] v_to_h_conversion = 
 	[
 	-1.0, 
+	-0.8, 
 	-0.6, 
-	-0.2, 
 	 0.0,
-	 0.2,
 	 0.6,
+	 0.8,
 	 1.0
 	];
 
@@ -905,8 +910,8 @@ static if(false)
 		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
 		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
 		
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel);
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].direction);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
 	text_helper(true);  //reset
 	
 // DRAW MOUSE PIXEL HELPER/FINDER
@@ -1071,9 +1076,22 @@ void test()
 	}
 
 //=============================================================================
-int main(char[][] args)
+int main(string [] args)
 	{
+	writeln("args length = ", args.length);
+	foreach(int i, string arg; args)
+		{
+		writeln("[",i, "] ", arg);
+		}
 		
+	if(args.length > 2)
+		{
+		SCREEN_W = to!int(args[1]);
+		SCREEN_H = to!int(args[2]);
+		writeln("New resolution is ", SCREEN_W, "x", SCREEN_H);
+		}
+
+
 	return al_run_allegro(
 		{
 		initialize();
