@@ -58,7 +58,7 @@ immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
 //player constants
-immutable float SPEED_FACTOR = 5.0F; //scales UP/down all speeds.
+immutable float SPEED_FACTOR = 3.0F; //scales UP/down all speeds.
 immutable float speed_change_rate = .1F * SPEED_FACTOR; 	//NYI
 immutable float speed_maximum	  =  1F * SPEED_FACTOR; 	//NYI
 immutable float player_jump_velocity = 10.0F; 	//NYI
@@ -545,6 +545,13 @@ class skier_t : drawable_object_t
 		x += x_vel;
 		y += y_vel;
 		z += z_vel;
+		
+		if(x_vel > speed_maximum)x_vel = speed_maximum;
+		if(y_vel > speed_maximum)y_vel = speed_maximum;
+		if(z_vel > speed_maximum)z_vel = speed_maximum;
+		if(x_vel < -speed_maximum)x_vel = -speed_maximum;
+		if(y_vel < -speed_maximum)y_vel = -speed_maximum;
+		if(z_vel < -speed_maximum)z_vel = -speed_maximum;
 		
 		if(x < 0){x_vel = 0; x = 0;}
 		if(y < 0){y_vel = 0; y = 0;}
