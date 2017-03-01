@@ -164,6 +164,7 @@ display_t display;
 struct statistics_t
 	{
 	int number_of_drawn_objects;
+	int number_of_drawn_background_tiles;
 	int fps;
 	int frames_passed;
 	}
@@ -426,8 +427,6 @@ class drawable_object_t : object_t
 		
 		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");	
 
-		writeln(direction);
-
 		animation.draw_centered(
 			direction + 3, //frame, NOTE, hardcoded direction size! 
 			x - v.offset_x + v.x, 
@@ -684,6 +683,7 @@ class world_t
 					0 + v.x - v.offset_x - tw/2 + tw*i, 
 					0 + v.y - v.offset_y - th/2 + th*j, 
 					0);
+				stats.number_of_drawn_background_tiles++;
 				j++;
 				}
 			i++;
@@ -916,6 +916,7 @@ struct display_t
 	void start_frame()	
 		{
 		stats.number_of_drawn_objects=0;
+		stats.number_of_drawn_background_tiles=0;
 		display.reset_clipping();
 		al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
 		}
@@ -983,7 +984,7 @@ struct display_t
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles);
 			
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].direction);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
