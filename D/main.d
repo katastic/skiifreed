@@ -1,6 +1,11 @@
 // SkiiFree'd - KATKO 2017
 //=============================================================================
 /*
+	QUESTION
+		- What if we made this into an ISOMETRIC('ish) game? 
+			- It needs to be SHARPLY angled since we're travelling you know... down. 
+			- Any games we can think of?
+
 	TODO
 		+ DRAW TREES in Z-ORDER so they don't overlap wrong (>>>simply sort objec list?) 
 		+ Scrolling
@@ -13,6 +18,7 @@
 
 	NEW FEATURES
 		- New enemies?
+		- CLIFFS
 		- New obsticles?
 		- New... stuff?
 		- WEATHER?
@@ -71,6 +77,17 @@ immutable float player_jump_velocity = 10.0F; 	//NYI
 int SCREEN_W = 1200;
 int SCREEN_H = 600;
 
+enum 
+	{
+	DIR_SINGLE_FRAME	= -3, //note
+	DIR_FULL_LEFT 		= -3, //note
+	DIR_FAR_ANGLE_LEFT 	= -2,
+	DIR_ANGLE_LEFT 		= -1,
+	DIR_DOWN 			= 0,
+	DIR_ANGLE_RIGHT 	= 1,
+	DIR_FAR_ANGLE_RIGHT = 2,
+	DIR_FULL_RIGHT 		= 3,
+	}
 
 immutable float [7] v_speeds = 
 	[
@@ -109,7 +126,7 @@ immutable float [7] v_to_h_conversion =
 //GLOBALS
 //=============================================================================
 ALLEGRO_CONFIG* 		cfg;  //whats this used for?
-ALLEGRO_DISPLAY* 		display;
+ALLEGRO_DISPLAY* 		al_display;
 ALLEGRO_EVENT_QUEUE* 	queue;
 
 ALLEGRO_COLOR 			color1;
@@ -137,6 +154,8 @@ struct xy_pair
 	int x;
 	int y;
 	}
+
+display_t display;
 
 // Is there any way we can have global variables in a NAMESPACE (use a module?)
 // Or is the single dereference NOT a big deal to pass tbe "globals struct"
@@ -180,6 +199,24 @@ class animation_t
 		has_loaded_a_frame = true;
 		}
 		
+	void load_extra_frame_mirrored(string path)
+		{
+		ALLEGRO_BITMAP *original_frame = al_load_bitmap( toStringz(path));
+		ALLEGRO_BITMAP *extra_frame = al_create_bitmap(al_get_bitmap_width(original_frame), al_get_bitmap_height(original_frame));
+		
+		al_set_target_bitmap(extra_frame);		
+		al_draw_bitmap(original_frame, 0, 0, ALLEGRO_FLIP_HORIZONTAL);
+		al_set_target_bitmap(al_get_backbuffer(al_display)); //set back to original.
+		
+		
+		
+		frames ~= extra_frame;
+		//names = to!string(); 
+		names ~= "OOPS."; //filler, what happens if not unique? Return first result?
+		has_loaded_a_frame = true;
+		}
+
+
 	void load_extra_frame(string path, string name)
 		{
 		ALLEGRO_BITMAP *extra_frame = al_load_bitmap( toStringz(path));
@@ -204,6 +241,34 @@ class animation_t
 		stats.number_of_drawn_objects++;
 		al_draw_bitmap(frames[frame], x, y, 0);
 		}
+
+	void draw_centered(int frame, float x, float y)
+		{
+		stats.number_of_drawn_objects++;
+		al_draw_bitmap(frames[frame], x + get_width()/2, y + get_height()/2, 0);
+		
+		static if (false) // Draw bordering dots
+			{
+			//top left
+			draw_target_dot(  
+				to!(int)(x + get_width()/2), 
+				to!(int)(y + get_height()/2));	
+			//bottom left
+			draw_target_dot(  
+				to!(int)(x + get_width()/2), 
+				to!(int)(y + get_height()/2 + get_height()));
+			//top right
+			draw_target_dot(  
+				to!(int)(x + get_width()/2 + get_width()), 
+				to!(int)(y + get_height()/2));
+			//bottom right
+			draw_target_dot(  
+				to!(int)(x + get_width()/2 + get_width()), 
+				to!(int)(y + get_height()/2 + get_height()));
+			}
+
+		}
+
 		
 	void empty(){}
 	}
@@ -215,7 +280,15 @@ void load_resources()
 	tree_anim = new animation_t;
 	jump_anim = new animation_t;
 	
-	player_anim	.load_extra_frame("./data/skii.png");
+	player_anim	.load_extra_frame_mirrored("./data/skier_01.png");
+	player_anim	.load_extra_frame_mirrored("./data/skier_02.png");
+	player_anim	.load_extra_frame_mirrored("./data/skier_03.png");
+	player_anim	.load_extra_frame("./data/skier_04.png");
+	player_anim	.load_extra_frame("./data/skier_03.png");
+	player_anim	.load_extra_frame("./data/skier_02.png");
+	player_anim	.load_extra_frame("./data/skier_01.png");
+
+
 	monster_anim.load_extra_frame("./data/mysha.pcx");
 	tree_anim	.load_extra_frame("./data/tree.png");
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
@@ -228,7 +301,7 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	float 		x, y, z; //objects are centered at X/Y (not top-left) so we can easily follow other objects.
 	float		x_vel, y_vel, z_vel; //note Z is used for jumps.
 
-	int direction; // 0 is straight down.
+	int direction; // see enum
 //	float		angle; // instead of x_vel, y_vel?
 //	float		vel;
 	float		width, height;
@@ -245,9 +318,8 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	object_t object_to_follow; 
 
 	this()
-		{
-			
-		direction=3; //far right horizontal.
+		{			
+		direction = DIR_DOWN; // -3, -2, -1, 0, 1, 2, 3
 		x = 0;
 		y = 0;
 		z = 0;
@@ -345,23 +417,29 @@ class drawable_object_t : object_t
 		alias v = viewport;
 		
 		//WARNING: CONFIRM THESE.
-		if(x + width/2  - v.offset_x < 0)return;	
-		if(y + height/2 - v.offset_y < 0)return;	
-		if(x - width/2  - v.offset_x  > SCREEN_W)return;	
-		if(y - height/2 - v.offset_y  > SCREEN_H)return;	
+		if(x + width/2  + width  - v.offset_x < 0)return;	
+		if(y + height/2 + height - v.offset_y < 0)return;	
+		if(x - width/2           - v.offset_x > SCREEN_W)return;	
+		if(y - height/2          - v.offset_y > SCREEN_H)return;	
+		
+//		al_draw_circle(0, 0, 1, al_map_rgb(0,0,0));
 		
 		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");	
 
-		animation.draw(0, 
-			this.x - v.offset_x + v.x, 
-			this.y - v.offset_y + v.y); //clipping not used yet. just pass along the viewport again?
+		writeln(direction);
+
+		animation.draw_centered(
+			direction + 3, //frame, NOTE, hardcoded direction size! 
+			x - v.offset_x + v.x, 
+			y - v.offset_y + v.y); //clipping not used yet. just pass along the viewport again?
 		}
 	}
 	
 class large_tree_t : drawable_object_t
 	{
 	this()
-		{	
+		{
+		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
 
@@ -729,7 +807,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 		}
 	}
 
-	display = al_create_display(SCREEN_W, SCREEN_H);
+	al_display = al_create_display(SCREEN_W, SCREEN_H);
 	queue	= al_create_event_queue();
 
 	if (!al_install_keyboard())      assert(0, "al_install_keyboard failed!");
@@ -739,7 +817,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	if (!al_init_ttf_addon())        assert(0, "al_init_ttf_addon failed!");
 	if (!al_init_primitives_addon()) assert(0, "al_init_primitives_addon failed!");
 
-	al_register_event_source(queue, al_get_display_event_source(display));
+	al_register_event_source(queue, al_get_display_event_source(al_display));
 	al_register_event_source(queue, al_get_keyboard_event_source());
 	al_register_event_source(queue, al_get_mouse_event_source());
 	
@@ -829,34 +907,94 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	al_register_event_source(queue, al_get_timer_event_source(fps_timer));
 	al_start_timer(fps_timer);
 	
-
 	return 0;
 	}
 
-void start_frame()	
+	
+struct display_t
 	{
-	stats.number_of_drawn_objects=0;
-	}
+	void start_frame()	
+		{
+		stats.number_of_drawn_objects=0;
+		display.reset_clipping();
+		al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
+		}
+		
+	void end_frame()
+		{	
+		al_flip_display();
+		}
 
-void draw_frame()
-	{
-	start_frame();
-	reset_clipping();
-	al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
-	//	al_draw_bitmap(bmp, 50, 50, 0);
-	//	al_draw_triangle(20, 20, 300, 30, 200, 200, ALLEGRO_COLOR(1, 1, 1, 1), 4);
-	al_draw_text(font, ALLEGRO_COLOR(1, 1, 1, 1), 70, 40, ALLEGRO_ALIGN_CENTRE, "Hello!");
+	void draw_frame()
+		{
+		start_frame();
+		//------------------
 
-	draw2();
+		draw2();
 
+		//------------------
+		end_frame();
+		}
 
+	void reset_clipping()
+		{
+		al_set_clipping_rectangle(0,0, SCREEN_W-1, SCREEN_H-1);
+		}
+		
+	void draw2()
+		{
+		
+	static if(true) //draw left viewport
+		{
+		al_set_clipping_rectangle(
+			viewports[0].x, 
+			viewports[0].y, 
+			viewports[0].x + viewports[0].width ,  //-1
+			viewports[0].y + viewports[0].height); //-1
+		al_clear_to_color(ALLEGRO_COLOR(1,1,1, 1));
+		world.draw(viewports[0]);
+		}
 
-	al_flip_display();
-	}
+	static if(true) //draw right viewport
+		{
+		al_set_clipping_rectangle(
+			viewports[1].x, 
+			viewports[1].y, 
+			viewports[1].x + viewports[1].width  - 1, 
+			viewports[1].y + viewports[1].height - 1);
+		al_clear_to_color(ALLEGRO_COLOR(.8,.8,.8, 1));
+		world.draw(viewports[1]);
+		}
+		
+		//Viewport separator
+	static if(true)
+		{
+		al_draw_line(
+			SCREEN_W/2 + 0.5, 
+			0 + 0.5, 
+			SCREEN_W/2 + 0.5, 
+			SCREEN_H + 0.5,
+			al_map_rgb(0,0,0), 
+			10);
+		}
+		
+		// Draw FPS and other text
+		display.reset_clipping();
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
+			
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].direction);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
+		text_helper(true);  //reset
+		
+		// DRAW MOUSE PIXEL HELPER/FINDER
+		draw_target_dot(mouse_x, mouse_y);
+		draw_target_dot(target.x, target.y);
+		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
+		}
 
-void reset_clipping()
-	{
-	al_set_clipping_rectangle(0,0, SCREEN_W-1, SCREEN_H-1);
 	}
 
 void draw_target_dot(int x, int y)
@@ -865,59 +1003,6 @@ void draw_target_dot(int x, int y)
 
 	immutable r = 2; //radius
 	al_draw_rectangle(x - r + 0.5f, y - r + 0.5f, x + r + 0.5f, y + r + 0.5f, al_map_rgb(0,1,0), 1);
-	}
-
-void draw2()
-	{
-	
-static if(true) //draw left viewport
-	{
-	al_set_clipping_rectangle(
-		viewports[0].x, 
-		viewports[0].y, 
-		viewports[0].x + viewports[0].width ,  //-1
-		viewports[0].y + viewports[0].height); //-1
-	al_clear_to_color(ALLEGRO_COLOR(1,1,1, 1));
-	world.draw(viewports[0]);
-	}
-
-static if(true) //draw right viewport
-	{
-	al_set_clipping_rectangle(
-		viewports[1].x, 
-		viewports[1].y, 
-		viewports[1].x + viewports[1].width  - 1, 
-		viewports[1].y + viewports[1].height - 1);
-	al_clear_to_color(ALLEGRO_COLOR(.8,.8,.8, 1));
-	world.draw(viewports[1]);
-	}
-	
-	//Viewport separator
-static if(false)
-	{
-	al_draw_line(
-		SCREEN_W/2 + 0.5, 
-		0 + 0.5, 
-		SCREEN_W/2 + 0.5, 
-		SCREEN_H + 0.5,
-		al_map_rgb(0,0,0), 
-		10);
-	}
-	// Draw FPS and other text
-	reset_clipping();
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d]", stats.number_of_drawn_objects);
-		
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].direction);
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
-	text_helper(true);  //reset
-	
-// DRAW MOUSE PIXEL HELPER/FINDER
-	draw_target_dot(mouse_x, mouse_y);
-	draw_target_dot(target.x, target.y);
-	al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
 	}
 
 /// For each call, this increments and returns a new Y coordinate for lower text.
@@ -1055,7 +1140,7 @@ void execute()
 		}
 
 		logic();
-		draw_frame();
+		display.draw_frame();
 		stats.frames_passed++;
 		}
 	}
@@ -1066,13 +1151,6 @@ void execute()
 void terminate() //I think "shutdown" is a standard lib UNIX function. Easier for breakpointing by name.
 	{
 		
-	}
-
-void test()
-	{
-	object_t x = new object_t; //WHAT? I have to do this?
-	assert(x !is null);
-	x.up();
 	}
 
 //=============================================================================
