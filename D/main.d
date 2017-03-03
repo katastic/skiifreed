@@ -5,14 +5,7 @@
 		- What if we made this into an ISOMETRIC('ish) game? 
 			- It needs to be SHARPLY angled since we're travelling you know... down. 
 			- Any games we can think of?
-
-	TODO
-		+ DRAW TREES in Z-ORDER so they don't overlap wrong (>>>simply sort objec list?) 
-		+ Scrolling
-		+ Viewports
-		- HOLDING KEYS instead of tapping them? 
-			- (wait, shouldn't they auto accelerate? So we only want KEYS to mean MODE).
-		- Jumping, ramps, other objects
+bo
 		- Monsters
 		- BOUNDING COLLISION BOXES (also draw collision boxes?)
 
@@ -33,6 +26,12 @@ import std.format; //String.Format like C#?! Nope. Damn, like printf.
 
 import std.random;
 import std.algorithm;
+
+//thread yielding?
+//-------------------------------------------
+import core.thread; //for yield... maybe?
+extern (C) int pthread_yield(); //does this ... work? No errors yet I can't tell if it changes anything...
+//------------------------------
 
 pragma(lib, "dallegro5");
 
@@ -68,7 +67,6 @@ immutable float SPEED_FACTOR = 4.0F; //scales UP/down all speeds.
 immutable float speed_change_rate = .1F * SPEED_FACTOR; 	//NYI
 immutable float speed_maximum	  =  1.3F * SPEED_FACTOR; 	//NYI
 immutable float player_jump_velocity = 10.0F; 	//NYI
-
 
 // Should this be IMMUTABLE? Are there any UPDATED DEPENDANT CONSTANTS we'll need to UPDATE
 // once this changes?
@@ -122,7 +120,6 @@ immutable float [7] v_to_h_conversion =
 	 1.0
 	];
 
-
 //GLOBALS
 //=============================================================================
 ALLEGRO_CONFIG* 		cfg;  //whats this used for?
@@ -153,6 +150,12 @@ struct xy_pair
 	{
 	int x;
 	int y;
+	
+	this(int _x, int _y)
+		{
+		x = _x;
+		y = _y;
+		}
 	}
 
 display_t display;
@@ -209,14 +212,11 @@ class animation_t
 		al_draw_bitmap(original_frame, 0, 0, ALLEGRO_FLIP_HORIZONTAL);
 		al_set_target_bitmap(al_get_backbuffer(al_display)); //set back to original.
 		
-		
-		
 		frames ~= extra_frame;
 		//names = to!string(); 
 		names ~= "OOPS."; //filler, what happens if not unique? Return first result?
 		has_loaded_a_frame = true;
 		}
-
 
 	void load_extra_frame(string path, string name)
 		{
@@ -267,9 +267,7 @@ class animation_t
 				to!(int)(x + get_width()/2 + get_width()), 
 				to!(int)(y + get_height()/2 + get_height()));
 			}
-
 		}
-
 		
 	void empty(){}
 	}
@@ -289,7 +287,6 @@ void load_resources()
 	player_anim	.load_extra_frame("./data/skier_02.png");
 	player_anim	.load_extra_frame("./data/skier_01.png");
 
-
 	monster_anim.load_extra_frame("./data/mysha.pcx");
 	tree_anim	.load_extra_frame("./data/tree.png");
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
@@ -305,18 +302,25 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	int direction; // see enum
 //	float		angle; // instead of x_vel, y_vel?
 //	float		vel;
-	float		width, height;
+	float		w, h;
+	int			w2, h2; //cached half width/height
 	
-	// Collision box. e.g. for trees, it's the stump, not the whole sprite.
-	int	bounding_x;
-	int	bounding_y;
-	int	bounding_w;
-	int	bounding_h;
-
 	bool trips_you;
 	bool slows_you_down;
 	bool is_following_another_object; 
 	object_t object_to_follow; 
+
+	void set_width(float _w)
+		{
+		w = _w;
+		w2 = to!(int)(w/2);
+		}
+		
+	void set_height(float _h)
+		{
+		h = _h;
+		h = to!(int)(h/2);
+		}
 
 	this()
 		{			
@@ -338,32 +342,6 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 		{
 		is_following_another_object = true;
 		object_to_follow = obj;
-		}
-	
-	bool is_colliding_with(object_t obj)
-		{
-		// I freakin' love D.
-		alias x1 = bounding_x;
-		alias y1 = bounding_y;
-		alias w1 = bounding_w;
-		alias h1 = bounding_h;
-		
-		alias x2 = obj.bounding_x;
-		alias y2 = obj.bounding_y;
-		alias w2 = obj.bounding_w;
-		alias h2 = obj.bounding_h;
-		
-		/* from https://wiki.allegro.cc/index.php?title=Bounding_Box   GO ALLEGRO GO
-		*/
-			
-		if(	x1 > x2 + w2 - 1 	|| 
-			y1 > y2 + h2 - 1 	||
-			x2 > x1 + w1 - 1	||
-			y2 > y1 + w1 - 1)
-			{
-			return false;
-			}
-		return true;
 		}
 	
 	// INPUTS (do we support mouse input?)
@@ -398,6 +376,48 @@ class camera_t : object_t
 
 class drawable_object_t : object_t
 	{
+	// Collision box. e.g. for trees, it's the stump, not the whole sprite.
+	int	bounding_x;
+	int	bounding_y;
+	int	bounding_w;
+	int	bounding_h;
+
+	this()	
+		{
+		bounding_x = 0;
+		bounding_y = 0;
+		bounding_w = 1;
+		bounding_h = 1;
+		}
+	
+	bool is_colliding_with(drawable_object_t obj)
+		{
+		// I freakin' love D.
+		alias x1 = bounding_x;
+		alias y1 = bounding_y;
+		alias w1 = bounding_w;
+		alias h1 = bounding_h;
+		
+		alias x2 = obj.bounding_x;
+		alias y2 = obj.bounding_y;
+		alias w2 = obj.bounding_w;
+		alias h2 = obj.bounding_h;
+		
+		/* from https://wiki.allegro.cc/index.php?title=Bounding_Box   GO ALLEGRO GO
+		*/
+			
+		if(	x1 > x2 + w2 - 1 	|| 
+			y1 > y2 + h2 - 1 	||
+			x2 > x1 + w1 - 1	||
+			y2 > y1 + w1 - 1)
+			{
+			return false;
+			}
+		return true;
+		}
+	
+
+
 	animation_t animation;
 	//int frame; for animated pieces
 	//float frame_delay; //number of logic frames per increment 
@@ -406,11 +426,48 @@ class drawable_object_t : object_t
 	//  down, 
 	//	down left, down left left, left
 	//  down right, down right right, right
+	void draw_bounding_box(viewport_t v)
+		{
+		int w3 = to!(int)(w);
+		int h3 = to!(int)(h);
+			
+			
+		//BUG, why do we need h3 (height) but w2 (width/2) to make things line up??
+		
+		// should the bounding_x/y be NEGATIVE since we're using 0,0 as center??
+		
+		xy_pair top_left = xy_pair (
+			to!(int)(x) + bounding_x - v.offset_x + v.x + w2, 
+			to!(int)(y) + bounding_y - v.offset_y + v.y + h3);
+		xy_pair top_right = xy_pair (
+			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x + w2, 
+			to!(int)(y) + bounding_y - v.offset_y + v.y + h3);
+		xy_pair bottom_left = xy_pair (
+			to!(int)(x) + bounding_x - v.offset_x + v.x + w2, 
+			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y + h3);
+		xy_pair bottom_right = xy_pair (
+			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x + w2, 
+			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y + h3); 
+
+		al_draw_rectangle(
+			top_left.x, top_left.y,
+			bottom_right.x, bottom_right.y,
+			al_map_rgb(255,0,0), 
+			1.0F);
+
+		draw_target_dot(top_left);
+		draw_target_dot(top_right);
+		draw_target_dot(bottom_left);
+		draw_target_dot(bottom_right);
+		}
 
 	void set_animation(animation_t anim)
 		{
 		assert(anim !is null, "You passed a NULL animation to set_animation in drawable_object_t!");
 		animation = anim;
+		
+		set_width(anim.get_width());
+		set_height(anim.get_height());
 		}
 
 	void draw(viewport_t viewport)
@@ -418,19 +475,21 @@ class drawable_object_t : object_t
 		alias v = viewport;
 		
 		//WARNING: CONFIRM THESE.
-		if(x + width/2  + width  - v.offset_x < 0)return;	
-		if(y + height/2 + height - v.offset_y < 0)return;	
-		if(x - width/2           - v.offset_x > SCREEN_W)return;	
-		if(y - height/2          - v.offset_y > SCREEN_H)return;	
+		if(x + w/2 + w - v.offset_x < 0)return;	
+		if(y + h/2 + h - v.offset_y < 0)return;	
+		if(x - w/2     - v.offset_x > SCREEN_W)return;	
+		if(y - h/2     - v.offset_y > SCREEN_H)return;	
 		
 //		al_draw_circle(0, 0, 1, al_map_rgb(0,0,0));
 		
-		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");	
+		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
 
 		animation.draw_centered(
 			direction + 3, //frame, NOTE, hardcoded direction size! 
 			x - v.offset_x + v.x, 
 			y - v.offset_y + v.y); //clipping not used yet. just pass along the viewport again?
+
+		draw_bounding_box(v);
 		}
 	}
 	
@@ -442,8 +501,10 @@ class large_tree_t : drawable_object_t
 		trips_you = true;
 		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
 
-		width = tree_anim.get_width();
-		height = tree_anim.get_height();
+		set_width(tree_anim.get_width());
+		set_height(tree_anim.get_height());
+		bounding_w = tree_anim.get_width();
+		bounding_h = tree_anim.get_height();
 		}
 	}
 
@@ -562,8 +623,10 @@ class skier_t : drawable_object_t
 		this.x = x; 
 		this.y = y;
 		
-		width  = player_anim.get_width();
-		height = player_anim.get_height();
+		set_width(player_anim.get_width());
+		set_height(player_anim.get_height());
+		bounding_w = player_anim.get_width();
+		bounding_h = player_anim.get_height();
 		}
 	
 	override void up()
@@ -909,7 +972,6 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	
 	return 0;
 	}
-
 	
 struct display_t
 	{
@@ -995,8 +1057,15 @@ struct display_t
 		draw_target_dot(target.x, target.y);
 		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
 		}
-
 	}
+
+
+//inline this? or template...
+void draw_target_dot(xy_pair xy)
+	{
+	draw_target_dot(xy.x, xy.y);
+	}
+
 
 void draw_target_dot(int x, int y)
 	{
@@ -1143,6 +1212,8 @@ void execute()
 		logic();
 		display.draw_frame();
 		stats.frames_passed++;
+//		Fiber.yield();  // THIS SEGFAULTS. I don't think this does what I thought.
+//		pthread_yield(); //doesn't seem to change anything useful here. Are we already VSYNC limited to 60 FPS?
 		}
 	}
 
@@ -1169,7 +1240,6 @@ int main(string [] args)
 		SCREEN_H = to!int(args[2]);
 		writeln("New resolution is ", SCREEN_W, "x", SCREEN_H);
 		}
-
 
 	return al_run_allegro(
 		{
