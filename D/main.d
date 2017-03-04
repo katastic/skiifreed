@@ -246,26 +246,33 @@ class animation_t
 	void draw_centered(int frame, float x, float y)
 		{
 		stats.number_of_drawn_objects++;
-		al_draw_bitmap(frames[frame], x + get_width()/2, y + get_height()/2, 0);
+		al_draw_bitmap(
+			frames[frame], 
+			x - get_width()/2,
+			y - get_height()/2, 
+			0);
+			
+//		draw_target_dot (x, y); 
+//		draw_target_dot (x - get_width()/2, y - get_height()/2); 
 		
-		static if (false) // Draw bordering dots
+		static if (true) // Draw bordering dots
 			{
 			//top left
 			draw_target_dot(  
-				to!(int)(x + get_width()/2), 
-				to!(int)(y + get_height()/2));	
+				to!(int)(x - get_width()/2), 
+				to!(int)(y - get_height()/2));	
 			//bottom left
 			draw_target_dot(  
-				to!(int)(x + get_width()/2), 
-				to!(int)(y + get_height()/2 + get_height()));
+				to!(int)(x - get_width()/2), 
+				to!(int)(y - get_height()/2 + get_height()));
 			//top right
 			draw_target_dot(  
-				to!(int)(x + get_width()/2 + get_width()), 
-				to!(int)(y + get_height()/2));
+				to!(int)(x - get_width()/2 + get_width()), 
+				to!(int)(y - get_height()/2));
 			//bottom right
 			draw_target_dot(  
-				to!(int)(x + get_width()/2 + get_width()), 
-				to!(int)(y + get_height()/2 + get_height()));
+				to!(int)(x - get_width()/2 + get_width()), 
+				to!(int)(y - get_height()/2 + get_height()));
 			}
 		}
 		
@@ -386,8 +393,8 @@ class drawable_object_t : object_t
 		{
 		bounding_x = 0;
 		bounding_y = 0;
-		bounding_w = 1;
-		bounding_h = 1;
+		bounding_w = 16;
+		bounding_h = 16;
 		}
 	
 	bool is_colliding_with(drawable_object_t obj)
@@ -428,30 +435,27 @@ class drawable_object_t : object_t
 	//  down right, down right right, right
 	void draw_bounding_box(viewport_t v)
 		{
-		int w3 = to!(int)(w);
-		int h3 = to!(int)(h);
+//		int w3 = to!(int)(w);
+// 		int h3 = to!(int)(h);
 			
-			
-		//BUG, why do we need h3 (height) but w2 (width/2) to make things line up??
-		
-		// should the bounding_x/y be NEGATIVE since we're using 0,0 as center??
-		
 		xy_pair top_left = xy_pair (
-			to!(int)(x) + bounding_x - v.offset_x + v.x + w2, 
-			to!(int)(y) + bounding_y - v.offset_y + v.y + h3);
+			to!(int)(x) + bounding_x - v.offset_x + v.x, 
+			to!(int)(y) + bounding_y - v.offset_y + v.y);
 		xy_pair top_right = xy_pair (
-			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x + w2, 
-			to!(int)(y) + bounding_y - v.offset_y + v.y + h3);
+			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x, 
+			to!(int)(y) + bounding_y - v.offset_y + v.y);
 		xy_pair bottom_left = xy_pair (
-			to!(int)(x) + bounding_x - v.offset_x + v.x + w2, 
-			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y + h3);
+			to!(int)(x) + bounding_x - v.offset_x + v.x, 
+			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y);
 		xy_pair bottom_right = xy_pair (
-			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x + w2, 
-			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y + h3); 
+			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x, 
+			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y); 
 
 		al_draw_rectangle(
-			top_left.x, top_left.y,
-			bottom_right.x, bottom_right.y,
+			top_left.x, 
+			top_left.y,
+			bottom_right.x, 
+			bottom_right.y,
 			al_map_rgb(255,0,0), 
 			1.0F);
 
@@ -505,6 +509,8 @@ class large_tree_t : drawable_object_t
 		set_height(tree_anim.get_height());
 		bounding_w = tree_anim.get_width();
 		bounding_h = tree_anim.get_height();
+		bounding_x = -bounding_w/2; 
+		bounding_y = -bounding_h/2; 
 		}
 	}
 
@@ -627,6 +633,8 @@ class skier_t : drawable_object_t
 		set_height(player_anim.get_height());
 		bounding_w = player_anim.get_width();
 		bounding_h = player_anim.get_height();
+		bounding_x = -bounding_w/2;
+		bounding_y = -bounding_h/2;
 		}
 	
 	override void up()
@@ -1066,6 +1074,11 @@ void draw_target_dot(xy_pair xy)
 	draw_target_dot(xy.x, xy.y);
 	}
 
+void draw_target_dot(float x, float y)
+	{
+	draw_target_dot(to!(int)(x), to!(int)(y));
+	}
+
 
 void draw_target_dot(int x, int y)
 	{
@@ -1074,6 +1087,8 @@ void draw_target_dot(int x, int y)
 	immutable r = 2; //radius
 	al_draw_rectangle(x - r + 0.5f, y - r + 0.5f, x + r + 0.5f, y + r + 0.5f, al_map_rgb(0,1,0), 1);
 	}
+
+
 
 /// For each call, this increments and returns a new Y coordinate for lower text.
 int text_helper(bool do_reset)
