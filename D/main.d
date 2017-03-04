@@ -63,7 +63,7 @@ immutable float maximum_y = 20000F; //NYI
 immutable float maximum_z = 100F; 	//NYI
 
 //player constants
-immutable float SPEED_FACTOR = 4.0F; //scales UP/down all speeds.
+immutable float SPEED_FACTOR = 3.0F; //scales UP/down all speeds.
 immutable float speed_change_rate = .1F * SPEED_FACTOR; 	//NYI
 immutable float speed_maximum	  =  1.3F * SPEED_FACTOR; 	//NYI
 immutable float player_jump_velocity = 10.0F; 	//NYI
@@ -245,17 +245,19 @@ class animation_t
 
 	void draw_centered(int frame, float x, float y)
 		{
+			
+		// BUG. Why does this STUTTER?
 		stats.number_of_drawn_objects++;
 		al_draw_bitmap(
 			frames[frame], 
-			x - get_width()/2,
-			y - get_height()/2, 
+			to!(int)(x) - get_width() / 2,
+			to!(int)(y) - get_height() / 2, 
 			0);
 			
 //		draw_target_dot (x, y); 
 //		draw_target_dot (x - get_width()/2, y - get_height()/2); 
 		
-		static if (true) // Draw bordering dots
+		static if (false) // Draw bordering dots
 			{
 			//top left
 			draw_target_dot(  
@@ -395,6 +397,18 @@ class drawable_object_t : object_t
 		bounding_y = 0;
 		bounding_w = 16;
 		bounding_h = 16;
+		//writeln("[drawable_object_t] constructor called.");
+		}
+	
+	void setup_dimensions(animation_t anim)
+		{
+		set_width(anim.get_width());
+		set_height(anim.get_height());
+		bounding_w = anim.get_width();
+		bounding_h = anim.get_height();
+		bounding_x = -bounding_w/2; 
+		bounding_y = -bounding_h/2; 
+
 		}
 	
 	bool is_colliding_with(drawable_object_t obj)
@@ -435,43 +449,117 @@ class drawable_object_t : object_t
 	//  down right, down right right, right
 	void draw_bounding_box(viewport_t v)
 		{
-//		int w3 = to!(int)(w);
-// 		int h3 = to!(int)(h);
-			
+		ALLEGRO_COLOR color = al_map_rgba(255,0,0, 255);
+		ALLEGRO_COLOR color2 = al_map_rgba(255,0,0, 64);
+		
 		xy_pair top_left = xy_pair (
-			to!(int)(x) + bounding_x - v.offset_x + v.x, 
-			to!(int)(y) + bounding_y - v.offset_y + v.y);
+			to!(int)(x) + bounding_x - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y - to!(int)(v.offset_y) + v.y);
 		xy_pair top_right = xy_pair (
-			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x, 
-			to!(int)(y) + bounding_y - v.offset_y + v.y);
+			to!(int)(x) + bounding_x + bounding_w - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y - to!(int)(v.offset_y) + v.y);
 		xy_pair bottom_left = xy_pair (
-			to!(int)(x) + bounding_x - v.offset_x + v.x, 
-			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y);
+			to!(int)(x) + bounding_x - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y + bounding_h - to!(int)(v.offset_y) + v.y);
 		xy_pair bottom_right = xy_pair (
-			to!(int)(x) + bounding_x + bounding_w - v.offset_x + v.x, 
-			to!(int)(y) + bounding_y + bounding_h - v.offset_y + v.y); 
+			to!(int)(x) + bounding_x + bounding_w - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y + bounding_h - to!(int)(v.offset_y) + v.y);
 
 		al_draw_rectangle(
 			top_left.x, 
 			top_left.y,
 			bottom_right.x, 
 			bottom_right.y,
-			al_map_rgb(255,0,0), 
+			color, 
 			1.0F);
 
 		draw_target_dot(top_left);
 		draw_target_dot(top_right);
 		draw_target_dot(bottom_left);
 		draw_target_dot(bottom_right);
+		
+		//draw centerline.
+		//horiztonal
+		al_draw_line(
+			top_left.x, 
+			(top_left.y + bottom_right.y)/2,  //center 
+			bottom_right.x, 
+			(top_left.y + bottom_right.y)/2,  //center 
+			color2, 
+			1);
+
+		//vertical
+		al_draw_line(
+			(top_left.x + bottom_right.x)/2,  //center
+			top_left.y,
+			(top_left.x + bottom_right.x)/2,  //center 
+			bottom_right.y,
+			color2, 
+			1);
 		}
+
+
+	// Theoretical (if correct) dimensions of where the sprite should be,
+	// including a center line. 
+	void draw_sprite_box(viewport_t v)
+		{
+		ALLEGRO_COLOR color = al_map_rgb(0,255,0);
+		ALLEGRO_COLOR color2 = al_map_rgba(0,255,0,64);
+		
+		xy_pair top_left = xy_pair (
+			to!(int)(x) + bounding_x - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y - to!(int)(v.offset_y) + v.y);
+		xy_pair top_right = xy_pair (
+			to!(int)(x) + bounding_x + bounding_w - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y - to!(int)(v.offset_y) + v.y);
+		xy_pair bottom_left = xy_pair (
+			to!(int)(x) + bounding_x - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y + bounding_h - to!(int)(v.offset_y) + v.y);
+		xy_pair bottom_right = xy_pair (
+			to!(int)(x) + bounding_x + bounding_w - to!(int)(v.offset_x) + v.x, 
+			to!(int)(y) + bounding_y + bounding_h - to!(int)(v.offset_y) + v.y); 
+
+		al_draw_rectangle(
+			top_left.x, 
+			top_left.y,
+			bottom_right.x, 
+			bottom_right.y,
+			color, 
+			1.0F);
+
+		draw_target_dot(top_left);
+		draw_target_dot(top_right);
+		draw_target_dot(bottom_left);
+		draw_target_dot(bottom_right);
+		
+		//draw centerline.
+		//horiztonal
+		al_draw_line(
+			top_left.x, 
+			(top_left.y + bottom_right.y)/2,  //center 
+			bottom_right.x, 
+			(top_left.y + bottom_right.y)/2,  //center 
+			color2, 
+			1);
+
+		//vertical
+		al_draw_line(
+			(top_left.x + bottom_right.x)/2,  //center
+			top_left.y,
+			(top_left.x + bottom_right.x)/2,  //center 
+			bottom_right.y,
+			color2, 
+			1);
+		}
+
+
 
 	void set_animation(animation_t anim)
 		{
 		assert(anim !is null, "You passed a NULL animation to set_animation in drawable_object_t!");
 		animation = anim;
 		
-		set_width(anim.get_width());
-		set_height(anim.get_height());
+		setup_dimensions(anim);		
 		}
 
 	void draw(viewport_t viewport)
@@ -493,7 +581,7 @@ class drawable_object_t : object_t
 			x - v.offset_x + v.x, 
 			y - v.offset_y + v.y); //clipping not used yet. just pass along the viewport again?
 
-		draw_bounding_box(v);
+		//draw_bounding_box(v);
 		}
 	}
 	
@@ -504,13 +592,7 @@ class large_tree_t : drawable_object_t
 		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
-
-		set_width(tree_anim.get_width());
-		set_height(tree_anim.get_height());
-		bounding_w = tree_anim.get_width();
-		bounding_h = tree_anim.get_height();
-		bounding_x = -bounding_w/2; 
-		bounding_y = -bounding_h/2; 
+	//	writeln("[large_tree_t] constructor called.");
 		}
 	}
 
@@ -628,13 +710,14 @@ class skier_t : drawable_object_t
 		{
 		this.x = x; 
 		this.y = y;
-		
+		writeln("[skier_t] constructor called.");
+		/*
 		set_width(player_anim.get_width());
 		set_height(player_anim.get_height());
 		bounding_w = player_anim.get_width();
 		bounding_h = player_anim.get_height();
 		bounding_x = -bounding_w/2;
-		bounding_y = -bounding_h/2;
+		bounding_y = -bounding_h/2;*/
 		}
 	
 	override void up()
@@ -727,8 +810,8 @@ class viewport_t
 	int height;
 	
 	// Camera position
-	int offset_x;
-	int offset_y;
+	float offset_x; //THIS being INT might be the stuttering issue...
+	float offset_y;
 	}
 
 class world_t
