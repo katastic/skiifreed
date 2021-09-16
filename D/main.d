@@ -27,6 +27,8 @@ import std.format; //String.Format like C#?! Nope. Damn, like printf.
 import std.random;
 import std.algorithm;
 
+import std.traits; // EnumMembers
+
 //thread yielding?
 //-------------------------------------------
 import core.thread; //for yield... maybe?
@@ -437,8 +439,6 @@ class drawable_object_t : object_t
 		return true;
 		}
 	
-
-
 	animation_t animation;
 	//int frame; for animated pieces
 	//float frame_delay; //number of logic frames per increment 
@@ -498,7 +498,6 @@ class drawable_object_t : object_t
 			1);
 		}
 
-
 	// Theoretical (if correct) dimensions of where the sprite should be,
 	// including a center line. 
 	void draw_sprite_box(viewport_t v)
@@ -552,8 +551,6 @@ class drawable_object_t : object_t
 			1);
 		}
 
-
-
 	void set_animation(animation_t anim)
 		{
 		assert(anim !is null, "You passed a NULL animation to set_animation in drawable_object_t!");
@@ -567,13 +564,12 @@ class drawable_object_t : object_t
 		alias v = viewport;
 		
 		//WARNING: CONFIRM THESE.
-		if(x + w/2 + w - v.offset_x < 0)return;	
-		if(y + h/2 + h - v.offset_y < 0)return;	
+		if(x + w/2 + w - v.offset_x < 0)return;
+		if(y + h/2 + h - v.offset_y < 0)return;
 		if(x - w/2     - v.offset_x > SCREEN_W)return;	
 		if(y - h/2     - v.offset_y > SCREEN_H)return;	
 		
 //		al_draw_circle(0, 0, 1, al_map_rgb(0,0,0));
-		
 		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
 
 		animation.draw_centered(
@@ -911,19 +907,24 @@ alias ALLEGRO_KEY = ubyte;
 struct keyset_t
 		{
 		object_t obj;
-		ALLEGRO_KEY [5] key;
+		ALLEGRO_KEY [ __traits(allMembers, keys_label).length] key;
 		// If we support MOUSE clicks, we could simply attach a MOUSE in here 
 		// and have it forward to the object's click_on() method.
 		// But again, that kills the idea of multiplayer.
 		}
 		
-enum
+enum keys_label
 	{
-	UP_KEY = 0,
-	DOWN_KEY = 1,
-	LEFT_KEY = 2,
-	RIGHT_KEY = 3,
-	ACTION_KEY = 4
+	ERROR = 0,
+	UP_KEY,
+	DOWN_KEY,
+	LEFT_KEY,
+	RIGHT_KEY,
+	FIRE_UP_KEY,
+	FIRE_DOWN_KEY,
+	FIRE_LEFT_KEY,
+	FIRE_RIGHT_KEY,
+	ACTION_KEY
 	}
 
 bool initialize()
@@ -975,18 +976,18 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	al_register_event_source(queue, al_get_keyboard_event_source());
 	al_register_event_source(queue, al_get_mouse_event_source());
 	
-	bmp 		= al_load_bitmap("./data/mysha.pcx");
+//	bmp  = al_load_bitmap("./data/mysha.pcx");
 	font = al_load_font("./data/DejaVuSans.ttf", 18, 0);
 
 	with(ALLEGRO_BLEND_MODE)
 		{
 		al_set_blender(ALLEGRO_BLEND_OPERATIONS.ALLEGRO_ADD, ALLEGRO_ALPHA, ALLEGRO_INVERSE_ALPHA);
 		}
-
+/*
 	color1 = al_color_hsl(0, 0, 0);
 	color2 = al_map_rgba_f(0.5, 0.25, 0.125, 1);
 	writefln("%s, %s, %s, %s", color1.r, color1.g, color2.b, color2.a);
-	
+*/	
 	// load animations/etc
 	// --------------------------------------------------------
 	load_resources();
@@ -1009,25 +1010,35 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	
 	// Create other objects.
 	// --------------------------------------------------------
-
 	world.populate_with_trees();
 
 	// SETUP player controls
 	// --------------------------------------------------------
-	player_controls[0].key[UP_KEY	] = ALLEGRO_KEY_UP;
-	player_controls[0].key[DOWN_KEY	] = ALLEGRO_KEY_DOWN;
-	player_controls[0].key[LEFT_KEY	] = ALLEGRO_KEY_LEFT;
-	player_controls[0].key[RIGHT_KEY] = ALLEGRO_KEY_RIGHT;
-	player_controls[0].key[ACTION_KEY] = ALLEGRO_KEY_SPACE;
-	player_controls[0].obj = world.objects[0];
+	with(keys_label)
+		{
+		player_controls[0].key[UP_KEY	] = ALLEGRO_KEY_UP;
+		player_controls[0].key[DOWN_KEY	] = ALLEGRO_KEY_DOWN;
+		player_controls[0].key[LEFT_KEY	] = ALLEGRO_KEY_LEFT;
+		player_controls[0].key[RIGHT_KEY] = ALLEGRO_KEY_RIGHT;
+		player_controls[0].key[FIRE_UP_KEY] = ALLEGRO_KEY_I;
+		player_controls[0].key[FIRE_DOWN_KEY] = ALLEGRO_KEY_K;
+		player_controls[0].key[FIRE_LEFT_KEY] = ALLEGRO_KEY_J;
+		player_controls[0].key[FIRE_RIGHT_KEY] = ALLEGRO_KEY_L;
+		player_controls[0].key[ACTION_KEY] = ALLEGRO_KEY_SPACE;
+		player_controls[0].obj = world.objects[0];
+		
+		player_controls[1].key[UP_KEY	] = ALLEGRO_KEY_W;
+		player_controls[1].key[DOWN_KEY	] = ALLEGRO_KEY_S;
+		player_controls[1].key[LEFT_KEY	] = ALLEGRO_KEY_A;
+		player_controls[1].key[RIGHT_KEY] = ALLEGRO_KEY_D;
+		player_controls[1].key[FIRE_UP_KEY] = 0; //fixme
+		player_controls[1].key[FIRE_DOWN_KEY] = 0;
+		player_controls[1].key[FIRE_LEFT_KEY] = 0;
+		player_controls[1].key[FIRE_RIGHT_KEY] = 0;
+		player_controls[1].key[ACTION_KEY] = ALLEGRO_KEY_R;
+		player_controls[1].obj = world.objects[1];
+		}
 	
-	player_controls[1].key[UP_KEY	] = ALLEGRO_KEY_W;
-	player_controls[1].key[DOWN_KEY	] = ALLEGRO_KEY_S;
-	player_controls[1].key[LEFT_KEY	] = ALLEGRO_KEY_A;
-	player_controls[1].key[RIGHT_KEY] = ALLEGRO_KEY_D;
-	player_controls[1].key[ACTION_KEY] = ALLEGRO_KEY_R;
-	player_controls[1].obj = world.objects[1];
-
 	// SETUP viewports
 	// --------------------------------------------------------
 	viewports[0] = new viewport_t;
@@ -1049,13 +1060,12 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	assert(viewports[0] !is null);
 	
 	// Finish object setup
-	// --------------------------------------------------------
-	
+	// --------------------------------------------------------	
 	world.sort_objects_list(); //sort trees z-ordering above players, and higher trees behind lower trees. (drawn first.) 
 	target.x = 590;
 	target.y = 300;
 
-	// FPS
+	// FPS Handling
 	// --------------------------------------------------------
 	fps_timer = al_create_timer(1.0f);
 	al_register_event_source(queue, al_get_timer_event_source(fps_timer));
@@ -1139,7 +1149,7 @@ struct display_t
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles);
 			
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].direction);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xyz [%2.2f/%2.2f/%2.2f] v[%2.2f/%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].z, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].z_vel, world.objects[0].direction);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
 		text_helper(true);  //reset
 		
@@ -1149,7 +1159,6 @@ struct display_t
 		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
 		}
 	}
-
 
 //inline this? or template...
 void draw_target_dot(xy_pair xy)
@@ -1162,7 +1171,6 @@ void draw_target_dot(float x, float y)
 	draw_target_dot(to!(int)(x), to!(int)(y));
 	}
 
-
 void draw_target_dot(int x, int y)
 	{
 	al_draw_pixel(x + 0.5, y + 0.5, al_map_rgb(0,1,0));
@@ -1170,8 +1178,6 @@ void draw_target_dot(int x, int y)
 	immutable r = 2; //radius
 	al_draw_rectangle(x - r + 0.5f, y - r + 0.5f, x + r + 0.5f, y + r + 0.5f, al_map_rgb(0,1,0), 1);
 	}
-
-
 
 /// For each call, this increments and returns a new Y coordinate for lower text.
 int text_helper(bool do_reset)
@@ -1237,6 +1243,7 @@ void execute()
 						target.x++;
 						}
 
+					with(keys_label)
 					foreach(int i, keyset_t player_data; player_controls)
 						{
 						if(event.keyboard.keycode == player_data.key[UP_KEY])
@@ -1327,7 +1334,7 @@ void terminate() //I think "shutdown" is a standard lib UNIX function. Easier fo
 int main(string [] args)
 	{
 	writeln("args length = ", args.length);
-	foreach(int i, string arg; args)
+	foreach(size_t i, string arg; args)
 		{
 		writeln("[",i, "] ", arg);
 		}

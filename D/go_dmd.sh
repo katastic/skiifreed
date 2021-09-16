@@ -1,7 +1,7 @@
 
 #!/bin/sh
 
-dmd -release -ofmain main.d -L-L. $@
+dmd -debug -vgc -ofmain main.d -L-L. $@
 
 
 #of  output file
