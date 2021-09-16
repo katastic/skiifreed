@@ -5,7 +5,6 @@
 		- What if we made this into an ISOMETRIC('ish) game? 
 			- It needs to be SHARPLY angled since we're travelling you know... down. 
 			- Any games we can think of?
-bo
 		- Monsters
 		- BOUNDING COLLISION BOXES (also draw collision boxes?)
 
@@ -22,11 +21,10 @@ bo
 import std.stdio;
 import std.conv;
 import std.string;
-import std.format; //String.Format like C#?! Nope. Damn, like printf.
-
+import std.format;
+import std.format;
 import std.random;
 import std.algorithm;
-
 import std.traits; // EnumMembers
 
 //thread yielding?
@@ -57,25 +55,28 @@ import allegro5.allegro_color;
 
 // CONSTANTS
 //=============================================================================
-immutable float JUMP_VELOCITY = 2.2F; //NYI
+struct globals_t
+	{
+	immutable float JUMP_VELOCITY = 2.2F; 
 
-//world dimensions
-immutable float maximum_x = 2000F; 	//NYI
-immutable float maximum_y = 20000F; //NYI
-immutable float maximum_z = 100F; 	//NYI
+	//world dimensions
+	immutable float maximum_x = 2000F; 	
+	immutable float maximum_y = 20000F; 
+	immutable float maximum_z = 100F; 	
 
-//player constants
-immutable float SPEED_FACTOR = 3.0F; //scales UP/down all speeds.
-immutable float speed_change_rate = .1F * SPEED_FACTOR; 	//NYI
-immutable float speed_maximum	  =  1.3F * SPEED_FACTOR; 	//NYI
-immutable float player_jump_velocity = 10.0F; 	//NYI
+	//player constants
+	immutable float SPEED_FACTOR = 3.0F; //scales UP/down all speeds.
+	immutable float speed_change_rate = .1F * SPEED_FACTOR; 	
+	immutable float speed_maximum	  =  1.3F * SPEED_FACTOR; 	
+	immutable float player_jump_velocity = 10.0F; 	
 
-// Should this be IMMUTABLE? Are there any UPDATED DEPENDANT CONSTANTS we'll need to UPDATE
-// once this changes?
-// We COULD have a "dependant variables" class that auto-updates the chain of constants
-// whenever the top variable change. a TREE STRUCTURE. Hmm.... that could be fun to write...
-int SCREEN_W = 1200;
-int SCREEN_H = 600;
+	int SCREEN_W = 1200;
+	int SCREEN_H = 600;
+
+	immutable float bullet_velocity = 7.5f;
+	};
+
+globals_t g;
 
 struct bullet_handler
 	{
@@ -628,8 +629,8 @@ class drawable_object_t : object_t
 		//WARNING: CONFIRM THESE.
 		if(x + w/2 + w - v.offset_x < 0)return;
 		if(y + h/2 + h - v.offset_y < 0)return;
-		if(x - w/2     - v.offset_x > SCREEN_W)return;	
-		if(y - h/2     - v.offset_y > SCREEN_H)return;	
+		if(x - w/2     - v.offset_x > g.SCREEN_W)return;	
+		if(y - h/2     - v.offset_y > g.SCREEN_H)return;	
 		
 //		al_draw_circle(0, 0, 1, al_map_rgb(0,0,0));
 		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
@@ -665,8 +666,8 @@ class bullet_t : drawable_object_t
 		//WARNING: CONFIRM THESE.
 		if(x + w/2 + w - v.offset_x < 0)return;
 		if(y + h/2 + h - v.offset_y < 0)return;
-		if(x - w/2     - v.offset_x > SCREEN_W)return;	
-		if(y - h/2     - v.offset_y > SCREEN_H)return;	
+		if(x - w/2     - v.offset_x > g.SCREEN_W)return;	
+		if(y - h/2     - v.offset_y > g.SCREEN_H)return;	
 		
 //		al_draw_circle(0, 0, 1, al_map_rgb(0,0,0));
 		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
@@ -775,7 +776,7 @@ class jump_t : drawable_object_t
 		alias o = other_obj; //this is kind of cool, we can CLEARLY label the variable, and then use a tiny/ABBREVIATION version.
 		//or alias player =
 		//or alias p =	
-		o.z_vel += JUMP_VELOCITY;
+		o.z_vel += g.JUMP_VELOCITY;
 		}
 	}
 
@@ -857,7 +858,7 @@ class skier_t : drawable_object_t
 			if(is_grounded)
 				{
 				is_jumping = true; //needed?
-				z_vel += player_jump_velocity;
+				z_vel += g.player_jump_velocity;
 				}
 			}
 
@@ -880,21 +881,21 @@ class skier_t : drawable_object_t
 		y += y_vel;
 		z += z_vel;
 		
-		if(x_vel > speed_maximum)x_vel = speed_maximum;
-		if(y_vel > speed_maximum)y_vel = speed_maximum;
-		if(z_vel > speed_maximum)z_vel = speed_maximum;
-		if(x_vel < -speed_maximum)x_vel = -speed_maximum;
-		if(y_vel < -speed_maximum)y_vel = -speed_maximum;
-		if(z_vel < -speed_maximum)z_vel = -speed_maximum;
+		if(x_vel > g.speed_maximum)x_vel = g.speed_maximum;
+		if(y_vel > g.speed_maximum)y_vel = g.speed_maximum;
+		if(z_vel > g.speed_maximum)z_vel = g.speed_maximum;
+		if(x_vel < -g.speed_maximum)x_vel = -g.speed_maximum;
+		if(y_vel < -g.speed_maximum)y_vel = -g.speed_maximum;
+		if(z_vel < -g.speed_maximum)z_vel = -g.speed_maximum;
 		
 		if(x < 0){x_vel = 0; x = 0;}
 		if(y < 0){y_vel = 0; y = 0;}
 		if(z < 0){z_vel = 0; z = 0; is_grounded = true;}
 			
 		// UPPER BOUNDS
-		if(x >= maximum_x){x_vel = 0; x = maximum_x-1;}
-		if(y >= maximum_y){y_vel = 0; y = maximum_y-1;}
-		if(x >= maximum_z){z_vel = 0; z = maximum_z-1;}
+		if(x >= g.maximum_x){x_vel = 0; x = g.maximum_x-1;}
+		if(y >= g.maximum_y){y_vel = 0; y = g.maximum_y-1;}
+		if(x >= g.maximum_z){z_vel = 0; z = g.maximum_z-1;}
 		//writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
 		}
 	}
@@ -971,8 +972,8 @@ class world_t
 		for(int i = 0; i < number_of_trees; i++)
 			{
 			large_tree_t tree = new large_tree_t;
-			tree.x = uniform(0, maximum_x);
-			tree.y = uniform(0, maximum_y);
+			tree.x = uniform(0, g.maximum_x);
+			tree.y = uniform(0, g.maximum_y);
 		
 			objects ~= tree;
 			}
@@ -1069,7 +1070,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 		}
 	}
 
-	al_display = al_create_display(SCREEN_W, SCREEN_H);
+	al_display = al_create_display(g.SCREEN_W, g.SCREEN_H);
 	queue	= al_create_event_queue();
 
 	if (!al_install_keyboard())      assert(0, "al_install_keyboard failed!");
@@ -1151,16 +1152,16 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	viewports[0] = new viewport_t;
 	viewports[0].x = 0;
 	viewports[0].y = 0;
-	viewports[0].width  = SCREEN_W/2;// - 1;
-	viewports[0].height = SCREEN_H;
+	viewports[0].width  = g.SCREEN_W/2;// - 1;
+	viewports[0].height = g.SCREEN_H;
 	viewports[0].offset_x = 0;
 	viewports[0].offset_y = 0;
 
 	viewports[1] = new viewport_t;
-	viewports[1].x = SCREEN_W/2;
+	viewports[1].x = g.SCREEN_W/2;
 	viewports[1].y = 0;
-	viewports[1].width  = SCREEN_W/2;//[ - 1;
-	viewports[1].height = SCREEN_H;
+	viewports[1].width  = g.SCREEN_W/2;//[ - 1;
+	viewports[1].height = g.SCREEN_H;
 	viewports[1].offset_x = 0;
 	viewports[1].offset_y = 0;
 
@@ -1209,7 +1210,7 @@ struct display_t
 
 	void reset_clipping()
 		{
-		al_set_clipping_rectangle(0,0, SCREEN_W-1, SCREEN_H-1);
+		al_set_clipping_rectangle(0,0, g.SCREEN_W-1, g.SCREEN_H-1);
 		}
 		
 	void draw2()
@@ -1241,10 +1242,10 @@ struct display_t
 	static if(true)
 		{
 		al_draw_line(
-			SCREEN_W/2 + 0.5, 
+			g.SCREEN_W/2 + 0.5, 
 			0 + 0.5, 
-			SCREEN_W/2 + 0.5, 
-			SCREEN_H + 0.5,
+			g.SCREEN_W/2 + 0.5, 
+			g.SCREEN_H + 0.5,
 			al_map_rgb(0,0,0), 
 			10);
 		}
@@ -1397,12 +1398,12 @@ void execute()
 							float y2 = mouse_y - viewports[0].height/2;
 							float a = atan2(y2, x2);
 							
-							float bv = 7.5; //bullet velocity
+							float bv = g.bullet_velocity;
 							
 							b.x_vel = bv * cos(a);
 							b.y_vel = bv * sin(a);
 				
-							b.a = a - 90 * 3.14159 / 180;
+							b.a = a - 90 * 3.14159 / 180;  // move -90 deg because bullet png is offset
 							world.bullet_h.add( b );
 							}					
 										
@@ -1483,9 +1484,9 @@ int main(string [] args)
 		
 	if(args.length > 2)
 		{
-		SCREEN_W = to!int(args[1]);
-		SCREEN_H = to!int(args[2]);
-		writeln("New resolution is ", SCREEN_W, "x", SCREEN_H);
+		g.SCREEN_W = to!int(args[1]);
+		g.SCREEN_H = to!int(args[2]);
+		writeln("New resolution is ", g.SCREEN_W, "x", g.SCREEN_H);
 		}
 
 	return al_run_allegro(
