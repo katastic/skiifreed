@@ -77,10 +77,50 @@ immutable float player_jump_velocity = 10.0F; 	//NYI
 int SCREEN_W = 1200;
 int SCREEN_H = 600;
 
+struct bullet_handler
+	{
+	bullet_t[] data;
+	
+	void add(bullet_t b)
+		{
+		data ~= b;
+		}
+	
+	void on_tick()
+		{
+		foreach (b; data) 
+			{
+			b.on_tick();
+			}
+		}
+	
+	void draw(viewport_t v)
+		{
+		foreach (b; data) 
+			{
+			b.draw(v);
+			}
+		}
+	
+	void cleanUp()
+		{
+		foreach (b; data) 
+			{
+			if(b.x < 0){} //delete
+			}
+		}
+	}
+
+
+
+
+
+
+
 enum 
 	{
 	DIR_SINGLE_FRAME	= -3, //note
-	DIR_FULL_LEFT 		= -3, //note
+	DIR_FULL_LEFT 		= -3, //note (wish I remembered why these are the same other than just writing 'note')
 	DIR_FAR_ANGLE_LEFT 	= -2,
 	DIR_ANGLE_LEFT 		= -1,
 	DIR_DOWN 			= 0,
@@ -137,14 +177,16 @@ animation_t player_anim;
 animation_t monster_anim;
 animation_t tree_anim;
 animation_t jump_anim;
+animation_t bullet_anim;
 
 keyset_t [2] player_controls;
 world_t world;
 viewport_t [2] viewports;
 ALLEGRO_TIMER *fps_timer;
 
-int mouse_x; //cached, obviously. for helper routines.
-int mouse_y;
+int mouse_x = 0; //cached, obviously. for helper routines.
+int mouse_y = 0;
+int mouse_lmb = 0;
 
 xy_pair target;
 
@@ -199,6 +241,8 @@ class animation_t
 	void load_extra_frame(string path)
 		{
 		ALLEGRO_BITMAP *extra_frame = al_load_bitmap( toStringz(path));
+		assert(extra_frame != null, "fuck");
+		
 		frames ~= extra_frame;
 		//names = to!string(); 
 		names ~= "OOPS."; //filler, what happens if not unique? Return first result?
@@ -245,6 +289,19 @@ class animation_t
 		al_draw_bitmap(frames[frame], x, y, 0);
 		}
 
+	void draw_rotated(int frame, float x, float y, float angle)
+		{
+		stats.number_of_drawn_objects++;
+//		al_draw_bitmap(frames[frame], x, y, a);
+		al_draw_rotated_bitmap(frames[frame], 
+			al_get_bitmap_width(frames[frame])/2, 
+			al_get_bitmap_height(frames[frame])/2, 
+			x, 
+			y, 
+			angle, 
+			0);
+		}
+
 	void draw_centered(int frame, float x, float y)
 		{
 			
@@ -289,6 +346,7 @@ void load_resources()
 	monster_anim = new animation_t;
 	tree_anim = new animation_t;
 	jump_anim = new animation_t;
+	bullet_anim = new animation_t;
 	
 	player_anim	.load_extra_frame_mirrored("./data/skier_01.png");
 	player_anim	.load_extra_frame_mirrored("./data/skier_02.png");
@@ -301,6 +359,8 @@ void load_resources()
 	monster_anim.load_extra_frame("./data/mysha.pcx");
 	tree_anim	.load_extra_frame("./data/tree.png");
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
+	
+	bullet_anim.load_extra_frame("./data/bullet.png");
 	}
 
 //DEFINITELY want this to be a class / reference type!
@@ -373,6 +433,8 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 			x = object_to_follow.x;
 			y = object_to_follow.y;
 			}
+		x += x_vel;
+		y += y_vel;
 		}
 
 	void on_collision(object_t other_obj)
@@ -580,7 +642,47 @@ class drawable_object_t : object_t
 		//draw_bounding_box(v);
 		}
 	}
+
+
+class bullet_t : drawable_object_t
+	{
+	float a = 0; /// angle
+	this()
+		{
+		direction = DIR_SINGLE_FRAME;
+		trips_you = false;
+		set_animation(bullet_anim); // WARNING, using global interfaced bullet_anim
+		writeln("[bullet_t] constructor called.");
+		}
+
+
+// FLAW. this copy's drawable object but we need only change one line or so for ROTATIONS.
+// either add it to main class or figure out how to split the changed parts only		
+	override void draw(viewport_t viewport)
+		{		
+		alias v = viewport;
+		
+		//WARNING: CONFIRM THESE.
+		if(x + w/2 + w - v.offset_x < 0)return;
+		if(y + h/2 + h - v.offset_y < 0)return;
+		if(x - w/2     - v.offset_x > SCREEN_W)return;	
+		if(y - h/2     - v.offset_y > SCREEN_H)return;	
+		
+//		al_draw_circle(0, 0, 1, al_map_rgb(0,0,0));
+		assert(animation !is null, "DID YOU REMEMBER TO SET THE ANIMATION for this object before calling it and blowing it up?");
+
+		animation.draw_rotated(
+			direction + 3, 
+			x - v.offset_x + v.x, 
+			y - v.offset_y + v.y,
+			a);
+			
+		//draw_bounding_box(v);
+		}
+
+	}
 	
+
 class large_tree_t : drawable_object_t
 	{
 	this()
@@ -812,6 +914,7 @@ class viewport_t
 
 class world_t
 	{
+	bullet_handler bullet_h; //cleanme
 	drawable_object_t [] objects; //should be drawable_object_t?
 
 	ALLEGRO_BITMAP *snow_bmp;
@@ -882,6 +985,8 @@ class world_t
 			{
 			o.draw(viewport);
 			}
+			
+		bullet_h.draw(viewport);
 		}
 
 	void logic()
@@ -890,6 +995,8 @@ class world_t
 			{
 			o.on_tick();
 			}
+		
+		bullet_h.on_tick();
 		}
 	
 	void test()
@@ -1145,7 +1252,7 @@ struct display_t
 		// Draw FPS and other text
 		display.reset_clipping();
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d]", mouse_x, mouse_y);
+			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d][%d]", mouse_x, mouse_y, mouse_lmb);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
 			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles);
 			
@@ -1243,6 +1350,9 @@ void execute()
 						target.x++;
 						}
 
+
+
+					//THIS ISNT CACHED PER FRAME/DECOUPLED? OOOOOOOOOOOOOOOOOOOOOOF FIXME.
 					with(keys_label)
 					foreach(int i, keyset_t player_data; player_controls)
 						{
@@ -1271,6 +1381,31 @@ void execute()
 							writefln("Player %d - ACTION", i+1);
 							player_data.obj.action();
 							}
+					
+						if(event.keyboard.keycode == ALLEGRO_KEY_F)
+							{
+							import std.math : sin, cos, atan2;
+							
+							mouse_lmb = true;
+							bullet_t b = new bullet_t;
+							object_t p = player_controls[0].obj;
+							
+							b.x = viewports[0].offset_x + viewports[0].width/2;
+							b.y = viewports[0].offset_y + viewports[0].height/2;
+							
+							float x2 = mouse_x - viewports[0].width/2;
+							float y2 = mouse_y - viewports[0].height/2;
+							float a = atan2(y2, x2);
+							
+							float bv = 7.5; //bullet velocity
+							
+							b.x_vel = bv * cos(a);
+							b.y_vel = bv * sin(a);
+				
+							b.a = a - 90 * 3.14159 / 180;
+							world.bullet_h.add( b );
+							}					
+										
 						}
 							
 					switch(event.keyboard.keycode)
@@ -1293,9 +1428,16 @@ void execute()
 					break;
 					}
 
+
+//kat work here
 				case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
 					{
-				//	exit = true;
+					break;
+					}
+				
+				case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
+					{
+					mouse_lmb = false;
 					break;
 					}
 				
