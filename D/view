@@ -1,1 +1,1 @@
-cat trace.log | sed -e 's/pure//' -e 's/nothrow//' -e 's/@safe//' -e 's/\@nogc//' -e 's/@property//' -e 's/@trusted//' | pygmentize -l d | less -r
+cat trace.log | sed -e 's/pure //' -e 's/nothrow //' -e 's/@safe //' -e 's/\@nogc //' -e 's/@property //' -e 's/@trusted //' | pygmentize -l d | less -r
