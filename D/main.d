@@ -356,7 +356,7 @@ void load_resources()
 	player_anim	.load_extra_frame("./data/skier_02.png");
 	player_anim	.load_extra_frame("./data/skier_01.png");
 
-	monster_anim.load_extra_frame("./data/mysha.pcx");
+	monster_anim.load_extra_frame("./data/yeti.png");
 	tree_anim	.load_extra_frame("./data/tree.png");
 	jump_anim	.load_extra_frame("./data/mysha.pcx");
 	
@@ -913,6 +913,8 @@ class monster_ai_t
 	//"run at assholes"
 	}
 
+
+/// Things that can Hurt (TM) you. e.g. Lionel Richie albums.
 class monster_t : drawable_object_t
 	{
 	ai_t ai;
@@ -920,6 +922,15 @@ class monster_t : drawable_object_t
 	// standing, alerted, walking, running, sprint-at-player, eating-player
 	// , enraged, dying, corpse
 	// eat animals?
+
+	this()
+		{
+		direction = DIR_SINGLE_FRAME;
+		trips_you = true;
+		set_animation(monster_anim); // WARNING, using global interfaced tree_anim
+	//	writeln("[large_tree_t] constructor called.");
+		}
+
 	
 	override void on_tick()
 		{
@@ -949,6 +960,9 @@ class yeti_t : monster_t {}
 class ufo_t : monster_t {} /// beams you up
 
 class evil_skiier : monster_t {} // unarmed/knife. uzi. rocket launchers
+ // NAZIS SKIIERS?!?!?
+ // Are we... FLEEING A NAZI CAMP?!
+ // NAZI YETIS?!
 
 class moose_t : monster_t {}
 class wolf_t : monster_t {}
@@ -957,6 +971,9 @@ class fox_t : monster_t {}
 
 
 
+
+
+//player class
 class skier_t : drawable_object_t
 	{
 	bool is_jumping;
@@ -1075,6 +1092,9 @@ class world_t
 	{
 	bullet_handler bullet_h; //cleanme
 	drawable_object_t [] objects; //should be drawable_object_t?
+	// monster_t [] monsters; // or combine with objects? tradeoffs. 
+	// - DRAW ORDER for one! (keep monsters behind trees, UFOs last and on top)
+	// - collision only between things that collide (tree only searches against players. not against tree list, monster list?, etc)
 
 	ALLEGRO_BITMAP *snow_bmp;
 
@@ -1138,6 +1158,28 @@ class world_t
 			}
 		}
  	
+	void populate_with_monsters()
+		{
+		immutable int number_of_monsters = 100;
+		
+		for(int i = 0; i < number_of_monsters; i++)
+			{
+			monster_t m = new monster_t;
+			m.x = uniform(0, g.maximum_x);
+			m.y = uniform(0, g.maximum_y);
+		
+			objects ~= m;
+			}
+		}
+
+
+
+
+
+
+
+
+
 	void draw(viewport_t viewport)
 		{
 		draw_background(viewport);
@@ -1282,7 +1324,8 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	// Create other objects.
 	// --------------------------------------------------------
 	world.populate_with_trees();
-
+	world.populate_with_monsters();
+	
 	// SETUP player controls
 	// --------------------------------------------------------
 	with(keys_label)
