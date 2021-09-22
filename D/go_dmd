@@ -1,7 +1,7 @@
 
 #!/bin/sh
 
-dmd -debug -ofmain main.d -L-L. $@
+dmd -debug -gs -g -ofmain main.d -L-L. $@
 #-vgc 
 
 

@@ -61,7 +61,7 @@ struct globals_t
 
 	//world dimensions
 	immutable float maximum_x = 2000F; 	
-	immutable float maximum_y = 20000F; 
+	immutable float maximum_y = 20_000F; 
 	immutable float maximum_z = 100F; 	
 
 	//player constants
@@ -74,7 +74,7 @@ struct globals_t
 	int SCREEN_H = 600;
 
 	immutable float bullet_velocity = 7.5f;
-	};
+	}
 
 globals_t g;
 
@@ -93,6 +93,12 @@ struct bullet_handler
 			{
 			b.on_tick();
 			}
+			
+		//prune ready-to-delete entries
+		for (size_t i = data.length ; i-- > 0 ; )
+			{
+			if(data[i].delete_me)data = data.remove(i); continue;
+			}//https://forum.dlang.org/post/sagacsjdtwzankyvclxn@forum.dlang.org
 		}
 	
 	void draw(viewport_t v)
@@ -103,20 +109,15 @@ struct bullet_handler
 			}
 		}
 	
-	void cleanUp()
-		{
-		foreach (b; data) 
-			{
-			if(b.x < 0){} //delete
-			}
-		}
+//	void cleanUp() //are we even calling this.
+	//	{
+//		foreach (b; data) 
+	//		{
+		//	if(b.x < 0){ b.delete_me = true;} //delete
+			//if(b.y < 0){ b.delete_me = true;}
+			//}
+		//}
 	}
-
-
-
-
-
-
 
 enum 
 	{
@@ -169,9 +170,6 @@ ALLEGRO_CONFIG* 		cfg;  //whats this used for?
 ALLEGRO_DISPLAY* 		al_display;
 ALLEGRO_EVENT_QUEUE* 	queue;
 
-ALLEGRO_COLOR 			color1;
-ALLEGRO_COLOR 			color2;
-ALLEGRO_BITMAP* 		bmp;
 ALLEGRO_FONT* 			font;
 
 animation_t player_anim;
@@ -253,9 +251,12 @@ class animation_t
 	void load_extra_frame_mirrored(string path)
 		{
 		ALLEGRO_BITMAP *original_frame = al_load_bitmap( toStringz(path));
-		ALLEGRO_BITMAP *extra_frame = al_create_bitmap(al_get_bitmap_width(original_frame), al_get_bitmap_height(original_frame));
+		ALLEGRO_BITMAP *extra_frame = 
+			al_create_bitmap(
+				al_get_bitmap_width(original_frame), 
+				al_get_bitmap_height(original_frame));
 		
-		al_set_target_bitmap(extra_frame);		
+		al_set_target_bitmap(extra_frame);
 		al_draw_bitmap(original_frame, 0, 0, ALLEGRO_FLIP_HORIZONTAL);
 		al_set_target_bitmap(al_get_backbuffer(al_display)); //set back to original.
 		
@@ -273,12 +274,12 @@ class animation_t
 		has_loaded_a_frame = true;
 		}
 		
-	ALLEGRO_BITMAP* get_frame_by_number(int i)
+	ALLEGRO_BITMAP* get_frame_by_number(int i) //TODO
 		{
 		ALLEGRO_BITMAP* x;
 		return x;
 		}
-	ALLEGRO_BITMAP* get_frame_by_name(string name)
+	ALLEGRO_BITMAP* get_frame_by_name(string name) //TODO
 		{
 		ALLEGRO_BITMAP* x;
 		return x;
@@ -293,7 +294,7 @@ class animation_t
 	void draw_rotated(int frame, float x, float y, float angle)
 		{
 		stats.number_of_drawn_objects++;
-//		al_draw_bitmap(frames[frame], x, y, a);
+
 		al_draw_rotated_bitmap(frames[frame], 
 			al_get_bitmap_width(frames[frame])/2, 
 			al_get_bitmap_height(frames[frame])/2, 
@@ -305,8 +306,6 @@ class animation_t
 
 	void draw_centered(int frame, float x, float y)
 		{
-			
-		// BUG. Why does this STUTTER?
 		stats.number_of_drawn_objects++;
 		al_draw_bitmap(
 			frames[frame], 
@@ -368,6 +367,9 @@ void load_resources()
 class object_t //could we use a drawable_object whereas object_t has re-usable functionality for a camera_t?
 	{
 	public:
+	
+	bool		delete_me = false;
+	
 	float 		x, y, z; //objects are centered at X/Y (not top-left) so we can easily follow other objects.
 	float		x_vel, y_vel, z_vel; //note Z is used for jumps.
 
@@ -448,7 +450,7 @@ class camera_t : object_t
 	// simply uses the follow object routines in object_t!
 	}
 
-class drawable_object_t : object_t
+class drawable_object_t : object_t /// drawable AND collidable
 	{
 	// Collision box. e.g. for trees, it's the stump, not the whole sprite.
 	int	bounding_x;
@@ -462,6 +464,10 @@ class drawable_object_t : object_t
 		bounding_y = 0;
 		bounding_w = 16;
 		bounding_h = 16;
+
+		x = -11; //error data for testing
+		y = -110;
+
 		//writeln("[drawable_object_t] constructor called.");
 		}
 	
@@ -471,35 +477,49 @@ class drawable_object_t : object_t
 		set_height(anim.get_height());
 		bounding_w = anim.get_width();
 		bounding_h = anim.get_height();
-		bounding_x = -bounding_w/2; 
-		bounding_y = -bounding_h/2; 
-
+		bounding_x = -bounding_w/2;
+		bounding_y = -bounding_h/2;
 		}
 	
 	bool is_colliding_with(drawable_object_t obj)
 		{
-		// I freakin' love D.
-		alias x1 = bounding_x;
-		alias y1 = bounding_y;
-		alias w1 = bounding_w;
-		alias h1 = bounding_h;
+		assert(this != obj);	
+
+		auto x1 = x; //oh my fucking GOD. why was this BOUNDING_X??????????
+		auto y1 = y;
+		auto w1 = w;
+		auto h1 = h;
 		
-		alias x2 = obj.bounding_x;
-		alias y2 = obj.bounding_y;
-		alias w2 = obj.bounding_w;
-		alias h2 = obj.bounding_h;
+		auto x2 = obj.x; 
+		auto y2 = obj.y; 
+		auto w2 = obj.w;
+		auto h2 = obj.h;
 		
-		/* from https://wiki.allegro.cc/index.php?title=Bounding_Box   GO ALLEGRO GO
-		*/
+		writeln("x1: ", x1, " y1: ", y1, " w1: ", w1, " h1: ", h1, " type: ", this);
+		writeln("x2: ", x2, " y2: ", y2, " w2: ", w2, " h2: ", h2, " type: ", obj);
+		
+		if( x1      < x2 + w2 &&
+			x1 + w1 > x2      &&
+			y1      < y2 + h2 &&
+			y1 + h1 > y2)
+			{
+			writeln("MATCH");
+			return true;
+			}
+		/* from https://wiki.allegro.cc/index.php?title=Bounding_Box 
+		 * also dead link
+		*/	
+		//https://developer.mozilla.org/en-US/docs/Games/Techniques/2D_collision_detection
 			
-		if(	x1 > x2 + w2 - 1 	|| 
+		// this can't be right with four OR'd elements.
+/*		if(	x1 > x2 + w2 - 1 	|| 
 			y1 > y2 + h2 - 1 	||
 			x2 > x1 + w1 - 1	||
-			y2 > y1 + w1 - 1)
+			y2 > y1 + w1 - 1) saved to analyze later 
 			{
 			return false;
-			}
-		return true;
+			}*/
+		return false;
 		}
 	
 	animation_t animation;
@@ -624,7 +644,7 @@ class drawable_object_t : object_t
 
 	void draw(viewport_t viewport)
 		{		
-		alias v = viewport;
+		auto v = viewport;
 		
 		//WARNING: CONFIRM THESE.
 		if(x + w/2 + w - v.offset_x < 0)return;
@@ -647,9 +667,37 @@ class drawable_object_t : object_t
 
 class bullet_t : drawable_object_t
 	{
+		/*  this one works, however the default behavior seems to be all i need at the moment.
+	import std.array : appender; 
+    override string toString() const pure @safe
+    {
+        // Typical implementation to minimize overhead
+        // of constructing string
+        auto app = appender!string();
+        app ~= "bullet_t_yo";
+        return app.data;
+    }   	
+    */	
+		
+	/*
+	// this does not appear to work
+	// https://wiki.dlang.org/Defining_custom_print_format_specifiers
+	// This method now takes a delegate to send data to.
+    void toString(scope void delegate(const(char)[]) sink) const
+    {
+        // So you can write your data piecemeal to its
+        // destination, without having to construct a
+        // string and then return it.
+        sink("bullet_t");
+        // Look, ma! No string allocations needed!
+    }
+    */
+    	
 	float a = 0; /// angle
 	this()
 		{
+		x = -1;
+		y = -10;
 		direction = DIR_SINGLE_FRAME;
 		trips_you = false;
 		set_animation(bullet_anim); // WARNING, using global interfaced bullet_anim
@@ -657,11 +705,12 @@ class bullet_t : drawable_object_t
 		}
 
 
+
 // FLAW. this copy's drawable object but we need only change one line or so for ROTATIONS.
 // either add it to main class or figure out how to split the changed parts only		
 	override void draw(viewport_t viewport)
 		{		
-		alias v = viewport;
+		auto v = viewport;
 		
 		//WARNING: CONFIRM THESE.
 		if(x + w/2 + w - v.offset_x < 0)return;
@@ -679,6 +728,30 @@ class bullet_t : drawable_object_t
 			a);
 			
 		//draw_bounding_box(v);
+		}
+
+
+	override void on_tick()
+		{
+		if(x < 0)delete_me = true;
+		if(y < 0)delete_me = true;
+		if(x > g.maximum_x)delete_me = true;
+		if(y > g.maximum_y)delete_me = true;
+			
+		// shouldn't need the first clause because this is now only in bullet_t not drawable object.
+		// though something may be needed when we put it back in
+		if( this != world.objects[1] &&
+			is_colliding_with( world.objects[1]) ) //hardcoded to player 2
+			{
+			auto o = world.objects[1];
+			writeln("BOOM! @ x:", x, " y: ", y, " w: ", w, " h: ", h);
+			writeln("      @ x:", o.x, " y: ", o.y, " w: ", o.w, " h: ", o.h);
+			writeln();
+			
+			delete_me = true;
+			}
+
+		super.on_tick();
 		}
 
 	}
@@ -773,23 +846,94 @@ class jump_t : drawable_object_t
 	// OMG, we could use this method to send ANY OBJECT FLYING, MWAHAHA.
 	override void on_collision(object_t other_obj) // I FREAKING LOVE EXPLICIT OVERRIDES.
 		{
-		alias o = other_obj; //this is kind of cool, we can CLEARLY label the variable, and then use a tiny/ABBREVIATION version.
-		//or alias player =
-		//or alias p =	
+		auto o = other_obj;
 		o.z_vel += g.JUMP_VELOCITY;
 		}
+	}
+	
+	
+	
+	
+struct particle
+	{
+	float x;
+	float y;
+	ALLEGRO_BITMAP bmp;
+	}
+	
+	
+	
+class projectile_t
+	{
+	animation_t sprite;
+	int damage;
+	int speed;
+	}
+	
+class weapon_t
+	{
+	bool has_shotgun_reload=false; // likely not needed.
+	int starting_ammo;
+	int max_ammo;
+	float fire_rate; // or cooldown?
+	float recoil;
+	float random_spread_accuracy;
+	int fire_count_per_trigger;
+	bool is_auto_fire;
+	bool is_burst_fire;
+	int burst_amount;
+
+	projectile_t projectile;
+	}
+
+class weapon_instance_t
+	{
+	weapon_t w;
+	int ammo;
+	float cooldown; //till next shot in milliseconds
+	}
+	
+class pickup_t {} /// item to be picked up
+class ammo_crate : pickup_t
+	{
+	animation_t sprite;
+	weapon_t ammo_for_type;
+	}
+
+class ai_state_t{}
+
+class ai_t
+	{
+	ai_state_t [] states;
+	ai_state_t current_state;
+	}
+
+class monster_ai_t
+	{
+	//"run at assholes"
 	}
 
 class monster_t : drawable_object_t
 	{
+	ai_t ai;
+	// yeti:
+	// standing, alerted, walking, running, sprint-at-player, eating-player
+	// , enraged, dying, corpse
+	// eat animals?
+	
 	override void on_tick()
 		{
 		//run torward assholes
 		// need a find_player method. (what about multiple players?)
-		// Do we also need an A* algorithm (or something more basic) for navigating around objects when stuck?
+		// Do we also need an A* algorithm (or something more basic)
+		// for navigating around objects when stuck?
 		// How do we get the monster to zig-zag like in the game?
 		}
-		
+	
+	void scream()
+		{
+		}
+	
 	override void on_collision(object_t other_obj) 
 		{
 		if(auto p = cast(skier_t) other_obj)
@@ -799,6 +943,20 @@ class monster_t : drawable_object_t
 		}
 	}
 	
+
+class yeti_t : monster_t {} 
+
+class ufo_t : monster_t {} /// beams you up
+
+class evil_skiier : monster_t {} // unarmed/knife. uzi. rocket launchers
+
+class moose_t : monster_t {}
+class wolf_t : monster_t {}
+class rabbit_t : monster_t {}
+class fox_t : monster_t {}
+
+
+
 class skier_t : drawable_object_t
 	{
 	bool is_jumping;
@@ -945,14 +1103,15 @@ class world_t
 		}
 
 	// Call this ONCE (or every time new objects appear)
-	// Or should we just have different lists for different objects? (so all trees are inherently on a different z-layer from players, etc.)
+	// Or should we just have different lists for different objects? (so all trees are inherently 
+	// on a different z-layer from players, etc.)
 	void sort_objects_list() //Sorts ALL BUT the first two objects? how?
 		{ //easiest way is to simply call before adding the players...
 			// or, set the players to the MOST negative Y position until after sorting.
 			// WE COULD EVEN STORE THE VALUES TEMPORARILY!
 		// WARNING: ASsumes players 1 and 2 EXIST and are first already.
-		float temp_p0_y = objects[0].y;
-		float temp_p1_y = objects[1].y;
+		immutable float temp_p0_y = objects[0].y;
+		immutable float temp_p1_y = objects[1].y;
 		objects[0].y = -1000;
 		objects[1].y =  -900;
 		
@@ -996,6 +1155,8 @@ class world_t
 			{
 			o.on_tick();
 			}
+		
+			
 		
 		bullet_h.on_tick();
 		}
@@ -1045,11 +1206,13 @@ bool initialize()
 		auto revision 	= (ver >> 8) & 255;
 		auto release 	= ver & 255;
 
-		writefln("The system Allegro version (%s.%s.%s.%s) does not match the version of this binding (%s.%s.%s.%s)",
+		writefln(
+"The system Allegro version (%s.%s.%s.%s) does not match the version of this binding (%s.%s.%s.%s)",
 			major, minor, revision, release,
 			ALLEGRO_VERSION, ALLEGRO_SUB_VERSION, ALLEGRO_WIP_VERSION, ALLEGRO_RELEASE_NUMBER);
 
-		assert(0, "The system Allegro version does not match the version of this binding!"); //why didn't they do this as an assert to begin with?
+		assert(0, "The system Allegro version does not match the version of this binding!"); //why
+		//  didn't they do this as an assert to begin with?
 		}
 /*	
 	what was this supposed to be used for??
