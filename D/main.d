@@ -14,7 +14,17 @@
 		- New obsticles?
 		- New... stuff?
 		- WEATHER?
-		- Water/ponds/cliffs?
+		- Water/ponds/RIVERS?
+
+
+
+
+
+	- POWERUPS
+		- Pac-man style "ghosts run away" powerup
+		- GTA style machine gun killer powerups. (spawns more enemies too?)
+
+
 */
 // http://www.everything2.com/title/Skifree
 
@@ -57,6 +67,10 @@ import allegro5.allegro_color;
 //=============================================================================
 struct globals_t
 	{
+	ALLEGRO_FONT* 			font;
+	ALLEGRO_BITMAP* 		snow_bmp;
+	ALLEGRO_BITMAP* 		snowflake_bmp;
+	ALLEGRO_BITMAP* 		bmp;
 	immutable float JUMP_VELOCITY = 2.2F; 
 
 	//world dimensions
@@ -74,6 +88,9 @@ struct globals_t
 	int SCREEN_H = 600;
 
 	immutable float bullet_velocity = 7.5f;
+	
+	ALLEGRO_COLOR snow_color;
+
 	}
 
 globals_t g;
@@ -170,7 +187,6 @@ ALLEGRO_CONFIG* 		cfg;  //whats this used for?
 ALLEGRO_DISPLAY* 		al_display;
 ALLEGRO_EVENT_QUEUE* 	queue;
 
-ALLEGRO_FONT* 			font;
 
 animation_t player_anim;
 animation_t monster_anim;
@@ -851,14 +867,62 @@ class jump_t : drawable_object_t
 		}
 	}
 	
-	
-	
-	
+// are we using a TEXTURED particle system for snow, or a PIXEL/opengl primitive one?
+// do we want this to be for all particles or just snow
 struct particle
 	{
 	float x;
 	float y;
-	ALLEGRO_BITMAP bmp;
+	float xv; //not polar notation so we can quickly add without using sin/cos
+	float yv;
+//	ALLEGRO_BITMAP bmp; 
+	} // using a handler and not an internal on_tick so we don't incur a function
+	// call for every single update, as well as the ability to operate on multiple
+	// particles at a time (MMX/AVX/etc)
+	
+struct particle_handler
+	{
+	particle[] data;
+	
+	void add(float x, float y, float xv, float yv)
+		{
+//		writeln("new one");
+		writeln("x: ", x, " y: ", y, " ---- ");
+		writeln("vx: ", xv, " vy: ", yv, "  ");
+
+		particle p;
+		p.x = x;
+		p.y = y;
+		p.xv = xv;
+		p.yv = yv;
+		data ~= p;
+		}
+	
+	void draw(viewport_t v)
+		{
+		// consider locking bitmap
+		foreach(p; data)
+			{
+//			writeln("p.x: ", p.x, " p.y: ", p.y, " ---- ");
+//			al_draw_pixel(p.x - v.offset_x, p.y - v.offset_y, al_map_rgb(1,1,0));
+			al_draw_bitmap(g.snowflake_bmp, p.x - v.offset_x, p.y - v.offset_y, 0);
+			// al_draw_pixel vs al_put_pixel (no blending) vs etc.
+			// https://www.allegro.cc/manual/5/al_put_blended_pixel ?
+			}
+		
+		}
+	
+	void on_tick()
+		{
+		foreach(p; data)
+			{
+			writeln("p.x: ", p.x, " p.y: ", p.y, "  before");
+			writeln("p.xv: ", p.xv, " p.yv: ", p.yv, "  before");
+			p.x += p.xv;
+	 		p.y += p.yv;
+			writeln("p.x: ", p.x, " p.y: ", p.y, "  after");
+			}
+		}
 	}
 	
 	
@@ -934,6 +998,19 @@ class monster_t : drawable_object_t
 	
 	override void on_tick()
 		{
+		immutable float SPEED = 1;
+		auto t = world.objects[0]; //target
+		
+		import std.math : abs;
+		if( abs(x - t.x) < 200 &&  // if within range, run at player.
+			abs(y - t.y) < 200 )
+			{
+			if(x < t.x) x+= SPEED;
+			if(x > t.x) x-= SPEED;
+			if(y < t.y) y+= SPEED;
+			if(y > t.y) y-= SPEED;
+			}
+		
 		//run torward assholes
 		// need a find_player method. (what about multiple players?)
 		// Do we also need an A* algorithm (or something more basic)
@@ -1090,19 +1167,19 @@ class viewport_t
 
 class world_t
 	{
+	particle_handler particle_h;
+			
 	bullet_handler bullet_h; //cleanme
 	drawable_object_t [] objects; //should be drawable_object_t?
 	// monster_t [] monsters; // or combine with objects? tradeoffs. 
 	// - DRAW ORDER for one! (keep monsters behind trees, UFOs last and on top)
 	// - collision only between things that collide (tree only searches against players. not against tree list, monster list?, etc)
 
-	ALLEGRO_BITMAP *snow_bmp;
-
 	void draw_background(viewport_t v)
 		{
 		//texture width/height alias
-		int tw = al_get_bitmap_width  (snow_bmp);
-		int th = al_get_bitmap_height (snow_bmp);			
+		int tw = al_get_bitmap_width  (g.snow_bmp);
+		int th = al_get_bitmap_height (g.snow_bmp);			
 		int i = 0;
 		int j = 0;
 		while(i*tw < v.width*2 + v.offset_x) //is this the RIGHT?
@@ -1111,7 +1188,7 @@ class world_t
 			while(j*th < v.height*2 + v.offset_y) //is this the RIGHT?
 				{
 				al_draw_bitmap(
-					snow_bmp, 
+					g.snow_bmp, 
 					0 + v.x - v.offset_x - tw/2 + tw*i, 
 					0 + v.y - v.offset_y - th/2 + th*j, 
 					0);
@@ -1172,14 +1249,6 @@ class world_t
 			}
 		}
 
-
-
-
-
-
-
-
-
 	void draw(viewport_t viewport)
 		{
 		draw_background(viewport);
@@ -1189,6 +1258,7 @@ class world_t
 			}
 			
 		bullet_h.draw(viewport);
+		particle_h.draw(viewport);
 		}
 
 	void logic()
@@ -1196,11 +1266,10 @@ class world_t
 		foreach(o; objects)
 			{
 			o.on_tick();
-			}
-		
-			
+			}			
 		
 		bullet_h.on_tick();
+		particle_h.on_tick();
 		}
 	
 	void test()
@@ -1289,18 +1358,17 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	al_register_event_source(queue, al_get_keyboard_event_source());
 	al_register_event_source(queue, al_get_mouse_event_source());
 	
-//	bmp  = al_load_bitmap("./data/mysha.pcx");
-	font = al_load_font("./data/DejaVuSans.ttf", 18, 0);
+	g.bmp  = al_load_bitmap("./data/mysha.pcx");
+	g.font = al_load_font("./data/DejaVuSans.ttf", 18, 0);
 
 	with(ALLEGRO_BLEND_MODE)
 		{
 		al_set_blender(ALLEGRO_BLEND_OPERATIONS.ALLEGRO_ADD, ALLEGRO_ALPHA, ALLEGRO_INVERSE_ALPHA);
 		}
-/*
-	color1 = al_color_hsl(0, 0, 0);
-	color2 = al_map_rgba_f(0.5, 0.25, 0.125, 1);
-	writefln("%s, %s, %s, %s", color1.r, color1.g, color2.b, color2.a);
-*/	
+		
+	//g.snow_color = al_map_rgba(255, 255, 255, 128); //can this be precalculated? we saw this in the DAllegro code i think. NOTE.
+	g.snow_color = ALLEGRO_COLOR(0,0,0,1);
+		
 	// load animations/etc
 	// --------------------------------------------------------
 	load_resources();
@@ -1308,7 +1376,8 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	// SETUP world
 	// --------------------------------------------------------
 	world = new world_t;
-	world.snow_bmp 	= al_load_bitmap("./data/snow.jpg");
+	g.snow_bmp 	= al_load_bitmap("./data/snow.jpg");
+	g.snowflake_bmp 	= al_load_bitmap("./data/snowflake.png");
 
 	// Create objects for player's 1 and 2 as first two slots
 	// --------------------------------------------------------
@@ -1379,6 +1448,14 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	target.x = 590;
 	target.y = 300;
 
+	import std.random : uniform;
+
+	for(int i = 0; i < 1000; i++)
+		world.particle_h.add(
+			world.objects[0].x + uniform(-100,1000), 
+			world.objects[0].y + uniform(-100,1000), 
+			5,5); 
+
 	// FPS Handling
 	// --------------------------------------------------------
 	fps_timer = al_create_timer(1.0f);
@@ -1395,7 +1472,7 @@ struct display_t
 		stats.number_of_drawn_objects=0;
 		stats.number_of_drawn_background_tiles=0;
 		display.reset_clipping();
-		al_clear_to_color(ALLEGRO_COLOR(1,0,0, 1));
+		al_clear_to_color(ALLEGRO_COLOR(1,0,0,1));
 		}
 		
 	void end_frame()
@@ -1458,19 +1535,19 @@ struct display_t
 		
 		// Draw FPS and other text
 		display.reset_clipping();
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d][%d]", mouse_x, mouse_y, mouse_lmb);
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d][%d]", mouse_x, mouse_y, mouse_lmb);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles);
 			
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xyz [%2.2f/%2.2f/%2.2f] v[%2.2f/%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].z, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].z_vel, world.objects[0].direction);
-			al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xyz [%2.2f/%2.2f/%2.2f] v[%2.2f/%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].z, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].z_vel, world.objects[0].direction);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
 		text_helper(true);  //reset
 		
 		// DRAW MOUSE PIXEL HELPER/FINDER
 		draw_target_dot(mouse_x, mouse_y);
 		draw_target_dot(target.x, target.y);
-		al_draw_textf(font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
+		al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), mouse_x, mouse_y - 30, ALLEGRO_ALIGN_CENTER, "mouse [%d, %d]", mouse_x, mouse_y);
 		}
 	}
 
