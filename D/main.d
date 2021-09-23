@@ -904,23 +904,33 @@ struct particle_handler
 		foreach(p; data)
 			{
 //			writeln("p.x: ", p.x, " p.y: ", p.y, " ---- ");
-//			al_draw_pixel(p.x - v.offset_x, p.y - v.offset_y, al_map_rgb(1,1,0));
-			al_draw_bitmap(g.snowflake_bmp, p.x - v.offset_x, p.y - v.offset_y, 0);
+// al_draw_rectangle(float x1, float y1, float x2, float y2,ALLEGRO_COLOR color, float thickness);
+			//al_draw_pixel(p.x - v.offset_x, p.y - v.offset_y, al_map_rgb(1,1,0));
+			al_draw_filled_circle(p.x - v.offset_x, p.y - v.offset_y, 5, al_map_rgba_f(1,.9,.9,.5));
+			//al_draw_bitmap(g.snowflake_bmp, p.x - v.offset_x, p.y - v.offset_y, 0);
 			// al_draw_pixel vs al_put_pixel (no blending) vs etc.
 			// https://www.allegro.cc/manual/5/al_put_blended_pixel ?
 			}
-		
 		}
 	
 	void on_tick()
 		{
-		foreach(p; data)
+		foreach(ref p; data)
 			{
-			writeln("p.x: ", p.x, " p.y: ", p.y, "  before");
-			writeln("p.xv: ", p.xv, " p.yv: ", p.yv, "  before");
+//			writeln("p.x: ", p.x, " p.y: ", p.y, "  before");
+	//		writeln("p.xv: ", p.xv, " p.yv: ", p.yv, "  before");
 			p.x += p.xv;
 	 		p.y += p.yv;
-			writeln("p.x: ", p.x, " p.y: ", p.y, "  after");
+	 		
+	 		viewport_t v = viewports[0];
+	 		
+	 		//viewport wrapping
+	 		if(p.x < 0 + v.offset_x) p.x += v.width;
+	 		if(p.y < 0 + v.offset_y) p.y += v.height;
+	 		if(p.x > v.width  + v.offset_x) p.x -= v.width;
+	 		if(p.y > v.height + v.offset_y) p.y -= v.height;
+	 		
+		//	writeln("p.x: ", p.x, " p.y: ", p.y, "  after");
 			}
 		}
 	}
@@ -1161,7 +1171,7 @@ class viewport_t
 	int height;
 	
 	// Camera position
-	float offset_x; //THIS being INT might be the stuttering issue...
+	float offset_x;
 	float offset_y;
 	}
 
@@ -1454,7 +1464,9 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 		world.particle_h.add(
 			world.objects[0].x + uniform(-100,1000), 
 			world.objects[0].y + uniform(-100,1000), 
-			5,5); 
+			uniform(-5.0,5.0),
+			uniform(-5.0,5.0)
+			); 
 
 	// FPS Handling
 	// --------------------------------------------------------
@@ -1471,8 +1483,8 @@ struct display_t
 		{
 		stats.number_of_drawn_objects=0;
 		stats.number_of_drawn_background_tiles=0;
-		display.reset_clipping();
-		al_clear_to_color(ALLEGRO_COLOR(1,0,0,1));
+		//reset_clipping(); why would we need this
+//		al_clear_to_color(ALLEGRO_COLOR(1,0,0,1));
 		}
 		
 	void end_frame()
