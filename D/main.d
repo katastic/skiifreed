@@ -10,6 +10,7 @@
 
 	NEW FEATURES
 		- New enemies?
+		*	SPIDER. YETI.  HORROR.
 		- CLIFFS
 		- New obsticles?
 		- New... stuff?
@@ -183,6 +184,14 @@ immutable float [7] v_to_h_conversion =
 
 //GLOBALS
 //=============================================================================
+
+// DEBUG
+immutable bool DEBUG_DRAW_BOXES = true;
+
+
+
+
+
 ALLEGRO_CONFIG* 		cfg;  //whats this used for?
 ALLEGRO_DISPLAY* 		al_display;
 ALLEGRO_EVENT_QUEUE* 	queue;
@@ -225,10 +234,11 @@ display_t display;
 
 struct statistics_t
 	{
-	int number_of_drawn_objects;
-	int number_of_drawn_background_tiles;
-	int fps;
-	int frames_passed;
+	ulong number_of_drawn_particles;
+	ulong  number_of_drawn_objects;
+	ulong number_of_drawn_background_tiles;
+	ulong fps;
+	ulong frames_passed;
 	}
 
 statistics_t stats;
@@ -676,7 +686,10 @@ class drawable_object_t : object_t /// drawable AND collidable
 			x - v.offset_x + v.x, 
 			y - v.offset_y + v.y); //clipping not used yet. just pass along the viewport again?
 
-		//draw_bounding_box(v);
+		static if(DEBUG_DRAW_BOXES)
+			{
+			draw_bounding_box(v);
+			}
 		}
 	}
 
@@ -900,13 +913,19 @@ struct particle_handler
 	
 	void draw(viewport_t v)
 		{
+		stats.number_of_drawn_particles += data.length; //note, we may have multiple viewports! So we add this, not set it to length. And reset every frame.
 		// consider locking bitmap
 		foreach(p; data)
 			{
 //			writeln("p.x: ", p.x, " p.y: ", p.y, " ---- ");
 // al_draw_rectangle(float x1, float y1, float x2, float y2,ALLEGRO_COLOR color, float thickness);
 			//al_draw_pixel(p.x - v.offset_x, p.y - v.offset_y, al_map_rgb(1,1,0));
-			al_draw_filled_circle(p.x - v.offset_x, p.y - v.offset_y, 5, al_map_rgba_f(1,.9,.9,.5));
+			int radius = 3;
+			al_draw_filled_circle(
+				p.x - v.offset_x + v.x, 
+				p.y - v.offset_y + v.y, 
+				radius, 
+				al_map_rgba_f(1,.9,.9,.5));
 			//al_draw_bitmap(g.snowflake_bmp, p.x - v.offset_x, p.y - v.offset_y, 0);
 			// al_draw_pixel vs al_put_pixel (no blending) vs etc.
 			// https://www.allegro.cc/manual/5/al_put_blended_pixel ?
@@ -915,27 +934,31 @@ struct particle_handler
 	
 	void on_tick()
 		{
+		viewport_t v = viewports[0]; 
+		//HACK. FIXME. Do we have each viewport_t contain a particle handler? Or do we (terribly) encode the ID of the viewport into each particle?.
+		// ALTERNATIVELY. We could store in particle_handler, a separate LIST for each viewport.
+		// either way, since we're scrolling against VIEWPORT EDGES I don't see any way
+		// for us to encapsulate viewport and particle data. Otherwise, we'll have to make
+		// tons of WORLDVIEW particles and just not draw the ones offscreen. Which is also stupid.
+		// a million, off-screen, manually clipped particles is not a great idea.
+
 		foreach(ref p; data)
 			{
 //			writeln("p.x: ", p.x, " p.y: ", p.y, "  before");
 	//		writeln("p.xv: ", p.xv, " p.yv: ", p.yv, "  before");
 			p.x += p.xv;
 	 		p.y += p.yv;
-	 		
-	 		viewport_t v = viewports[0];
-	 		
+	 			 		
 	 		//viewport wrapping
-	 		if(p.x < 0 + v.offset_x) p.x += v.width;
-	 		if(p.y < 0 + v.offset_y) p.y += v.height;
-	 		if(p.x > v.width  + v.offset_x) p.x -= v.width;
-	 		if(p.y > v.height + v.offset_y) p.y -= v.height;
+	 		if(p.x < 0 + v.offset_x + v.x) p.x += v.width;
+	 		if(p.y < 0 + v.offset_y + v.y) p.y += v.height;
+	 		if(p.x > v.width  + v.offset_x + v.x) p.x -= v.width;
+	 		if(p.y > v.height + v.offset_y + v.y) p.y -= v.height;
 	 		
 		//	writeln("p.x: ", p.x, " p.y: ", p.y, "  after");
 			}
 		}
 	}
-	
-	
 	
 class projectile_t
 	{
@@ -987,7 +1010,6 @@ class monster_ai_t
 	//"run at assholes"
 	}
 
-
 /// Things that can Hurt (TM) you. e.g. Lionel Richie albums.
 class monster_t : drawable_object_t
 	{
@@ -1004,7 +1026,6 @@ class monster_t : drawable_object_t
 		set_animation(monster_anim); // WARNING, using global interfaced tree_anim
 	//	writeln("[large_tree_t] constructor called.");
 		}
-
 	
 	override void on_tick()
 		{
@@ -1044,6 +1065,8 @@ class monster_t : drawable_object_t
 
 class yeti_t : monster_t {} 
 
+class spider_yeti_t : yeti_t {}
+
 class ufo_t : monster_t {} /// beams you up
 
 class evil_skiier : monster_t {} // unarmed/knife. uzi. rocket launchers
@@ -1060,7 +1083,7 @@ class fox_t : monster_t {}
 
 
 
-//player class
+/// Player class
 class skier_t : drawable_object_t
 	{
 	bool is_jumping;
@@ -1135,30 +1158,51 @@ class skier_t : drawable_object_t
 		x_vel += y_vel*v_to_h_conversion[direction+3]*.05;
 	
 		if(y_vel > 0)y_vel -= 0.01F;
-		
 		if(x_vel > 0)x_vel -= 0.08F;
 		if(x_vel < 0)x_vel += 0.08F;
 	
 		x += x_vel;
 		y += y_vel;
 		z += z_vel;
-		
+
+		// Speed boundaries
 		if(x_vel > g.speed_maximum)x_vel = g.speed_maximum;
 		if(y_vel > g.speed_maximum)y_vel = g.speed_maximum;
 		if(z_vel > g.speed_maximum)z_vel = g.speed_maximum;
 		if(x_vel < -g.speed_maximum)x_vel = -g.speed_maximum;
 		if(y_vel < -g.speed_maximum)y_vel = -g.speed_maximum;
 		if(z_vel < -g.speed_maximum)z_vel = -g.speed_maximum;
-		
+	
+		// Map boundaries
 		if(x < 0){x_vel = 0; x = 0;}
 		if(y < 0){y_vel = 0; y = 0;}
 		if(z < 0){z_vel = 0; z = 0; is_grounded = true;}
-			
-		// UPPER BOUNDS
 		if(x >= g.maximum_x){x_vel = 0; x = g.maximum_x-1;}
 		if(y >= g.maximum_y){y_vel = 0; y = g.maximum_y-1;}
 		if(x >= g.maximum_z){z_vel = 0; z = g.maximum_z-1;}
 		//writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
+		
+		foreach(o; world.objects)
+			{
+			if(auto p = cast(skier_t) o)
+				{ // https://forum.dlang.org/thread/mailman.135.1328728747.20196.digitalmars-d-learn@puremagic.com
+				  // if not null, it's a pointer to a skier object
+
+				// is fellow player object
+				}else{
+				// is something else	
+				int r = 6; //radius
+				if(
+					o.x >= this.x - r &&
+					o.y >= this.y - r &&
+					o.x <= this.x + r &&
+					o.y <= this.y + r)
+					{
+					writeln("OH SNAP-- I just hit a [", o.toString(), "]");
+					}
+				}
+
+			}
 		}
 	}
 	
@@ -1276,16 +1320,10 @@ class world_t
 		foreach(o; objects)
 			{
 			o.on_tick();
-			}			
-		
+			// since there are far fewer players than everything else, lets do the collision checking in the player objects.
+			}
 		bullet_h.on_tick();
 		particle_h.on_tick();
-		}
-	
-	void test()
-		{
-		skier_t x;
-		objects ~= x; //polymorphism rules. 
 		}
 	}
 
@@ -1483,6 +1521,7 @@ struct display_t
 		{
 		stats.number_of_drawn_objects=0;
 		stats.number_of_drawn_background_tiles=0;
+		stats.number_of_drawn_particles=0;
 		//reset_clipping(); why would we need this
 //		al_clear_to_color(ALLEGRO_COLOR(1,0,0,1));
 		}
@@ -1550,7 +1589,7 @@ struct display_t
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d][%d]", mouse_x, mouse_y, mouse_lmb);
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d], particles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles, stats.number_of_drawn_particles);
 			
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xyz [%2.2f/%2.2f/%2.2f] v[%2.2f/%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].z, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].z_vel, world.objects[0].direction);
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);
