@@ -15,10 +15,20 @@
 		- New obsticles?
 		- New... stuff?
 		- WEATHER?
-		- Water/ponds/RIVERS?
+		- Water/ponds/RIVERS? Jump over them
+ 		- LAND TYPES (rare?)
+				- i.e. mud trenches like a mud version of a river generation
 
+		- NEW PARTICLE: Skii trails! <----
+		- WIND. Make snow particles go the same direction!
+				- give wind a direction and velocity
+				- give particles a bell curve + std deviation to change from that
+				- should snow ever land on the "ground" instead of the edge of the screen
+					which essentially means the snow is so high up
 
-
+		- Neat thing is, because snow particles are viewport position aware, they "change" 
+			as you move left or right or down on the map, even though they're still just clipped
+			and wrapped at the viewport boundaries.
 
 
 	- POWERUPS
@@ -64,6 +74,39 @@ import allegro5.allegro_font;
 import allegro5.allegro_ttf;
 import allegro5.allegro_color;
 
+// Helper functions
+//=============================================================================
+
+// can't remember the best name for this.
+ void clampUpper(T)(ref T val, T max)
+	{
+	if(val > max)
+		{
+		val = max;
+		}
+	}	
+
+void clampLower(T)(ref T val, T min)
+	{
+	if(val < min)
+		{
+		val = min;
+		}
+	}	
+
+void clampBoth(T)(ref T val, T min, T max)
+	{
+	if(val < min)
+		{
+		val = min;
+		}
+	if(val > max)
+		{
+		val = max;
+		}
+	}	
+
+
 // CONSTANTS
 //=============================================================================
 struct globals_t
@@ -73,6 +116,7 @@ struct globals_t
 	ALLEGRO_BITMAP* 		snowflake_bmp;
 	ALLEGRO_BITMAP* 		bmp;
 	immutable float JUMP_VELOCITY = 2.2F; 
+	immutable uint NUM_SNOW_PARTICLES = 50; //per viewport
 
 	//world dimensions
 	immutable float maximum_x = 2000F; 	
@@ -187,7 +231,7 @@ immutable float [7] v_to_h_conversion =
 
 // DEBUG
 immutable bool DEBUG_DRAW_BOXES = true;
-
+immutable bool DEBUG_NO_BACKGROUND = true;
 
 
 
@@ -235,7 +279,7 @@ display_t display;
 struct statistics_t
 	{
 	ulong number_of_drawn_particles;
-	ulong  number_of_drawn_objects;
+	ulong number_of_drawn_objects;
 	ulong number_of_drawn_background_tiles;
 	ulong fps;
 	ulong frames_passed;
@@ -451,7 +495,7 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	void left(){}
 	void right(){}
 	void action(){} // ala space. for monster this would be EAT MWAHAHA. (or is that automatic?) LET HIM EAT OTHER PEOPLE AND STUFF TOO.
-	void click_at(float relative_x, float relatie_y){} //maybe? relative to object coordinate.
+	void click_at(float relative_x, float relative_y){} //maybe? relative to object coordinate.
 	
 	// EVENTS
 	// ------------------------------------------
@@ -511,13 +555,13 @@ class drawable_object_t : object_t /// drawable AND collidable
 		{
 		assert(this != obj);	
 
-		auto x1 = x; //oh my fucking GOD. why was this BOUNDING_X??????????
-		auto y1 = y;
+		auto x1 = x + bounding_x; //oh my fucking GOD. why was this BOUNDING_X?
+		auto y1 = y + bounding_y; //note bounding_x/y are negative numbers above.
 		auto w1 = w;
 		auto h1 = h;
 		
-		auto x2 = obj.x; 
-		auto y2 = obj.y; 
+		auto x2 = obj.x + obj.bounding_x; 
+		auto y2 = obj.y + obj.bounding_y; 
 		auto w2 = obj.w;
 		auto h2 = obj.h;
 		
@@ -668,7 +712,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 		setup_dimensions(anim);		
 		}
 
-	void draw(viewport_t viewport)
+	void draw(viewport_t viewport) /// Drawn centered
 		{		
 		auto v = viewport;
 		
@@ -889,25 +933,25 @@ struct particle
 	float xv; //not polar notation so we can quickly add without using sin/cos
 	float yv;
 //	ALLEGRO_BITMAP bmp; 
-	} // using a handler and not an internal on_tick so we don't incur a function
+	} // using a handler and not an internal on_tick so we ddon't incur a function
 	// call for every single update, as well as the ability to operate on multiple
 	// particles at a time (MMX/AVX/etc)
 	
-struct particle_handler
+struct snow_t
 	{
 	particle[] data;
+	ALLEGRO_COLOR c;
 	
 	void add(float x, float y, float xv, float yv)
 		{
-//		writeln("new one");
-		writeln("x: ", x, " y: ", y, " ---- ");
-		writeln("vx: ", xv, " vy: ", yv, "  ");
+//		writeln("x: ", x, " y: ", y, " ---- ");
+	//	writeln("vx: ", xv, " vy: ", yv, "  ");
 
 		particle p;
-		p.x = x;
-		p.y = y;
-		p.xv = xv;
-		p.yv = yv;
+			p.x = x;
+			p.y = y;
+			p.xv = xv;
+			p.yv = yv;
 		data ~= p;
 		}
 	
@@ -922,26 +966,25 @@ struct particle_handler
 			//al_draw_pixel(p.x - v.offset_x, p.y - v.offset_y, al_map_rgb(1,1,0));
 			int radius = 3;
 			al_draw_filled_circle(
-				p.x - v.offset_x + v.x, 
-				p.y - v.offset_y + v.y, 
+				p.x - v.offset_x,  // why DOESNT this need + v.x?
+				p.y - v.offset_y,  // why DOESNT this need + v.y?
 				radius, 
-				al_map_rgba_f(1,.9,.9,.5));
+				al_map_rgba_f(.9,.9,.9,.9));
 			//al_draw_bitmap(g.snowflake_bmp, p.x - v.offset_x, p.y - v.offset_y, 0);
 			// al_draw_pixel vs al_put_pixel (no blending) vs etc.
 			// https://www.allegro.cc/manual/5/al_put_blended_pixel ?
 			}
 		}
 	
-	void on_tick()
-		{
-		viewport_t v = viewports[0]; 
-		//HACK. FIXME. Do we have each viewport_t contain a particle handler? Or do we (terribly) encode the ID of the viewport into each particle?.
-		// ALTERNATIVELY. We could store in particle_handler, a separate LIST for each viewport.
-		// either way, since we're scrolling against VIEWPORT EDGES I don't see any way
-		// for us to encapsulate viewport and particle data. Otherwise, we'll have to make
-		// tons of WORLDVIEW particles and just not draw the ones offscreen. Which is also stupid.
-		// a million, off-screen, manually clipped particles is not a great idea.
 
+	// NOTE, this is called BY VIEWPORTS (who own it)
+	// not the normal GFX pathway hence the viewport name prefix.
+	// Each viewport manages its own set of snow particles so they can be wrapped 
+	// at the viewport boundaries per viewport and no particles are accessed by
+	// the other viewport so it's just two simple arrays instead of sorting / booleans / etc
+	// to tell them apart. Since they're high-count particles they need to be as simple as possible.
+	void on_viewport_tick(viewport_t v)
+		{
 		foreach(ref p; data)
 			{
 //			writeln("p.x: ", p.x, " p.y: ", p.y, "  before");
@@ -949,7 +992,7 @@ struct particle_handler
 			p.x += p.xv;
 	 		p.y += p.yv;
 	 			 		
-	 		//viewport wrapping
+	 		//viewport wrapping  ("clamp wrap"? tile clamp?)
 	 		if(p.x < 0 + v.offset_x + v.x) p.x += v.width;
 	 		if(p.y < 0 + v.offset_y + v.y) p.y += v.height;
 	 		if(p.x > v.width  + v.offset_x + v.x) p.x -= v.width;
@@ -1166,13 +1209,16 @@ class skier_t : drawable_object_t
 		z += z_vel;
 
 		// Speed boundaries
-		if(x_vel > g.speed_maximum)x_vel = g.speed_maximum;
+		x_vel.clampBoth(-g.speed_maximum, g.speed_maximum);
+		y_vel.clampBoth(-g.speed_maximum, g.speed_maximum);
+		z_vel.clampBoth(-g.speed_maximum, g.speed_maximum);
+/*		if(x_vel > g.speed_maximum)x_vel = g.speed_maximum;
 		if(y_vel > g.speed_maximum)y_vel = g.speed_maximum;
 		if(z_vel > g.speed_maximum)z_vel = g.speed_maximum;
 		if(x_vel < -g.speed_maximum)x_vel = -g.speed_maximum;
 		if(y_vel < -g.speed_maximum)y_vel = -g.speed_maximum;
 		if(z_vel < -g.speed_maximum)z_vel = -g.speed_maximum;
-	
+*/
 		// Map boundaries
 		if(x < 0){x_vel = 0; x = 0;}
 		if(y < 0){y_vel = 0; y = 0;}
@@ -1190,8 +1236,11 @@ class skier_t : drawable_object_t
 
 				// is fellow player object
 				}else{
-				// is something else	
-				int r = 6; //radius
+				// is something else
+
+
+				//TODO use proper bounding box distances.
+				int r = 6; //radius/distance
 				if(
 					o.x >= this.x - r &&
 					o.y >= this.y - r &&
@@ -1217,12 +1266,12 @@ class viewport_t
 	// Camera position
 	float offset_x;
 	float offset_y;
+
+	snow_t snow;
 	}
 
 class world_t
-	{
-	particle_handler particle_h;
-			
+	{			
 	bullet_handler bullet_h; //cleanme
 	drawable_object_t [] objects; //should be drawable_object_t?
 	// monster_t [] monsters; // or combine with objects? tradeoffs. 
@@ -1267,7 +1316,6 @@ class world_t
 		objects[1].y =  -900;
 		
 		alias comparison = (o1, o2) => o1.y < o2.y; //should be ordered ascending, ala [1,2,3,4]
-		
 		objects.sort!(comparison); //COULD THIS BREAK in a way we don't anticipate?
 		// as long as trees are AFTER these objects, and 
 		
@@ -1303,16 +1351,22 @@ class world_t
 			}
 		}
 
-	void draw(viewport_t viewport)
+	void draw(viewport_t v)
 		{
-		draw_background(viewport);
+		static if(!DEBUG_NO_BACKGROUND)draw_background(v);
 		foreach(o; objects)
 			{
-			o.draw(viewport);
+			o.draw(v);
 			}
 			
-		bullet_h.draw(viewport);
-		particle_h.draw(viewport);
+		bullet_h.draw(v);
+		
+		if(v == viewports[0]) //omfg kill me now.
+			{
+			viewports[0].snow.draw(viewports[0]); //TODO clean API
+			}else{
+			viewports[1].snow.draw(viewports[1]);
+			}
 		}
 
 	void logic()
@@ -1323,7 +1377,8 @@ class world_t
 			// since there are far fewer players than everything else, lets do the collision checking in the player objects.
 			}
 		bullet_h.on_tick();
-		particle_h.on_tick();
+		viewports[0].snow.on_viewport_tick(viewports[0]);
+		viewports[1].snow.on_viewport_tick(viewports[1]);
 		}
 	}
 
@@ -1498,13 +1553,21 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 
 	import std.random : uniform;
 
-	for(int i = 0; i < 1000; i++)
-		world.particle_h.add(
-			world.objects[0].x + uniform(-100,1000), 
+	for(int i = 0; i < g.NUM_SNOW_PARTICLES; i++)
+		{
+		viewports[0].snow.add(
+			world.objects[0].x + uniform(-100,1000), //pos 
 			world.objects[0].y + uniform(-100,1000), 
-			uniform(-5.0,5.0),
-			uniform(-5.0,5.0)
-			); 
+			uniform(0.0,5.0), // vel xy
+			uniform(0.0,5.0)
+				);
+		viewports[1].snow.add(
+			world.objects[1].x + uniform(-100,1000), //pos 
+			world.objects[1].y + uniform(-100,1000), 
+			uniform(0.0,5.0), // vel xy
+			uniform(0.0,5.0)
+				);
+		}
 
 	// FPS Handling
 	// --------------------------------------------------------
@@ -1522,8 +1585,14 @@ struct display_t
 		stats.number_of_drawn_objects=0;
 		stats.number_of_drawn_background_tiles=0;
 		stats.number_of_drawn_particles=0;
-		//reset_clipping(); why would we need this
-//		al_clear_to_color(ALLEGRO_COLOR(1,0,0,1));
+		
+
+		
+		static if(DEBUG_NO_BACKGROUND)
+			{
+			reset_clipping(); //why would we need this? One possible is below! To clear to color the whole screen!
+			al_clear_to_color(ALLEGRO_COLOR(.2,.2,.2,1)); //only needed if we aren't drawing a background
+			}
 		}
 		
 	void end_frame()
@@ -1544,7 +1613,7 @@ struct display_t
 
 	void reset_clipping()
 		{
-		al_set_clipping_rectangle(0,0, g.SCREEN_W-1, g.SCREEN_H-1);
+		al_set_clipping_rectangle(0, 0, g.SCREEN_W-1, g.SCREEN_H-1);
 		}
 		
 	void draw2()
@@ -1557,7 +1626,10 @@ struct display_t
 			viewports[0].y, 
 			viewports[0].x + viewports[0].width ,  //-1
 			viewports[0].y + viewports[0].height); //-1
-		al_clear_to_color(ALLEGRO_COLOR(1,1,1, 1));
+		
+		static if(DEBUG_NO_BACKGROUND)
+			al_clear_to_color(ALLEGRO_COLOR(.7, .7, .7, 1));
+		
 		world.draw(viewports[0]);
 		}
 
@@ -1568,7 +1640,10 @@ struct display_t
 			viewports[1].y, 
 			viewports[1].x + viewports[1].width  - 1, 
 			viewports[1].y + viewports[1].height - 1);
-		al_clear_to_color(ALLEGRO_COLOR(.8,.8,.8, 1));
+
+		static if(DEBUG_NO_BACKGROUND)
+			al_clear_to_color(ALLEGRO_COLOR(.8,.7,.7, 1));
+
 		world.draw(viewports[1]);
 		}
 		
@@ -1635,6 +1710,7 @@ int text_helper(bool do_reset)
 	return starting_height + text_height*number_of_entries;
 	}
 
+/// Update viewport positions based on player position and viewport size
 void calculate_camera()
 	{
 	// Calculate camera
@@ -1723,7 +1799,7 @@ void execute()
 							
 							mouse_lmb = true;
 							bullet_t b = new bullet_t;
-							object_t p = player_controls[0].obj;
+//							object_t p = player_controls[0].obj;
 							
 							b.x = viewports[0].offset_x + viewports[0].width/2;
 							b.y = viewports[0].offset_y + viewports[0].height/2;
