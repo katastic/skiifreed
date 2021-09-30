@@ -8,6 +8,12 @@
 		- Monsters
 		- BOUNDING COLLISION BOXES (also draw collision boxes?)
 
+
+	 - INNOCENT PEDESTRIALS
+     - GORE.
+	 - Guns? Pistol, machinegun, FLAME THROWER.  ... KATANA.
+	- skiier skins. James Bond. The Bride from Kill Bill.
+
 	NEW FEATURES
 		- New enemies?
 		*	SPIDER. YETI.  HORROR.
@@ -30,12 +36,9 @@
 			as you move left or right or down on the map, even though they're still just clipped
 			and wrapped at the viewport boundaries.
 
-
 	- POWERUPS
 		- Pac-man style "ghosts run away" powerup
 		- GTA style machine gun killer powerups. (spawns more enemies too?)
-
-
 */
 // http://www.everything2.com/title/Skifree
 
@@ -230,8 +233,9 @@ immutable float [7] v_to_h_conversion =
 //=============================================================================
 
 // DEBUG
-immutable bool DEBUG_DRAW_BOXES = true;
-immutable bool DEBUG_NO_BACKGROUND = true;
+// -----------------------------------------------------
+immutable bool DEBUG_DRAW_BOXES = false;
+immutable bool DEBUG_NO_BACKGROUND = false;
 
 
 
@@ -244,8 +248,11 @@ ALLEGRO_EVENT_QUEUE* 	queue;
 animation_t player_anim;
 animation_t monster_anim;
 animation_t tree_anim;
+animation_t small_tree_anim;
 animation_t jump_anim;
 animation_t bullet_anim;
+animation_t stump_anim;
+animation_t rock_anim;
 
 keyset_t [2] player_controls;
 world_t world;
@@ -415,8 +422,11 @@ void load_resources()
 	player_anim = new animation_t;
 	monster_anim = new animation_t;
 	tree_anim = new animation_t;
+	small_tree_anim = new animation_t;
 	jump_anim = new animation_t;
 	bullet_anim = new animation_t;
+	stump_anim = new animation_t;
+	rock_anim = new animation_t;
 	
 	player_anim	.load_extra_frame_mirrored("./data/skier_01.png");
 	player_anim	.load_extra_frame_mirrored("./data/skier_02.png");
@@ -428,7 +438,10 @@ void load_resources()
 
 	monster_anim.load_extra_frame("./data/yeti.png");
 	tree_anim	.load_extra_frame("./data/tree.png");
-	jump_anim	.load_extra_frame("./data/mysha.pcx");
+	small_tree_anim	.load_extra_frame("./data/smalltree.png");
+	jump_anim	.load_extra_frame("./data/mysha.pcx");//fixme
+	stump_anim	.load_extra_frame("./data/stump.png");
+	rock_anim	.load_extra_frame("./data/rock.png");
 	
 	bullet_anim.load_extra_frame("./data/bullet.png");
 	}
@@ -437,7 +450,6 @@ void load_resources()
 class object_t //could we use a drawable_object whereas object_t has re-usable functionality for a camera_t?
 	{
 	public:
-	
 	bool		delete_me = false;
 	
 	float 		x, y, z; //objects are centered at X/Y (not top-left) so we can easily follow other objects.
@@ -555,7 +567,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 		{
 		assert(this != obj);	
 
-		auto x1 = x + bounding_x; //oh my fucking GOD. why was this BOUNDING_X?
+		auto x1 = x + bounding_x; //
 		auto y1 = y + bounding_y; //note bounding_x/y are negative numbers above.
 		auto w1 = w;
 		auto h1 = h;
@@ -565,14 +577,13 @@ class drawable_object_t : object_t /// drawable AND collidable
 		auto w2 = obj.w;
 		auto h2 = obj.h;
 		
-		writeln("x1: ", x1, " y1: ", y1, " w1: ", w1, " h1: ", h1, " type: ", this);
-		writeln("x2: ", x2, " y2: ", y2, " w2: ", w2, " h2: ", h2, " type: ", obj);
-		
 		if( x1      < x2 + w2 &&
 			x1 + w1 > x2      &&
 			y1      < y2 + h2 &&
 			y1 + h1 > y2)
 			{
+			writeln("x1: ", x1, " y1: ", y1, " w1: ", w1, " h1: ", h1, " type: ", this);
+			writeln("x2: ", x2, " y2: ", y2, " w2: ", w2, " h2: ", h2, " type: ", obj);
 			writeln("MATCH");
 			return true;
 			}
@@ -737,7 +748,6 @@ class drawable_object_t : object_t /// drawable AND collidable
 		}
 	}
 
-
 class bullet_t : drawable_object_t
 	{
 		/*  this one works, however the default behavior seems to be all i need at the moment.
@@ -776,8 +786,6 @@ class bullet_t : drawable_object_t
 		set_animation(bullet_anim); // WARNING, using global interfaced bullet_anim
 		writeln("[bullet_t] constructor called.");
 		}
-
-
 
 // FLAW. this copy's drawable object but we need only change one line or so for ROTATIONS.
 // either add it to main class or figure out how to split the changed parts only		
@@ -845,16 +853,19 @@ class small_tree_t : drawable_object_t
 	{
 	this()
 		{
+		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
-		// TODO
+		set_animation(small_tree_anim); // WARNING, using global interfaced small_tree_anim
 		}
 	}
 
-class dead_tree_t : drawable_object_t
+class stump_t : drawable_object_t
 	{
 	this()
 		{
+		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
+		set_animation(stump_anim); // WARNING, using global interfaced small_tree_anim
 		}
 	}
 
@@ -862,7 +873,9 @@ class rock_t : drawable_object_t
 	{
 	this()
 		{
+		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
+		set_animation(rock_anim); // WARNING, using global interfaced small_tree_anim
 		}
 	}
 
@@ -902,14 +915,6 @@ class lift_chair_t : drawable_object_t
 	{
 	this()
 		{
-		}
-	}
-
-class tree_stump : drawable_object_t 
-	{
-	this()
-		{
-		trips_you = true; //fuck you. ;)
 		}
 	}
 
@@ -1072,17 +1077,31 @@ class monster_t : drawable_object_t
 	
 	override void on_tick()
 		{
-		immutable float SPEED = 1;
-		auto t = world.objects[0]; //target
-		
 		import std.math : abs;
-		if( abs(x - t.x) < 200 &&  // if within range, run at player.
-			abs(y - t.y) < 200 )
+		immutable float SPEED = 1.5f;
+
+		auto t = world.objects[0]; //target
+		float x_dist = abs(x - t.x);
+		float y_dist = abs(y - t.y);
+
+		auto t2 = world.objects[1]; //target
+		float x_dist2 = abs(x - t2.x);
+		float y_dist2 = abs(y - t2.y);
+
+		// if within range, run at player.
+		// will run at either player in range, favoring player 1.
+		// no state persistance yet, so no tracking first noticed player and staying on it ala Aggro.
+		if( x_dist < 200 && y_dist < 200 )
 			{
 			if(x < t.x) x+= SPEED;
 			if(x > t.x) x-= SPEED;
 			if(y < t.y) y+= SPEED;
 			if(y > t.y) y-= SPEED;
+			} else if (x_dist2 < 200 && y_dist2 < 200 ) {
+			if(x < t2.x) x+= SPEED;
+			if(x > t2.x) x-= SPEED;
+			if(y < t2.y) y+= SPEED;
+			if(y > t2.y) y-= SPEED;
 			}
 		
 		//run torward assholes
@@ -1105,13 +1124,9 @@ class monster_t : drawable_object_t
 		}
 	}
 	
-
 class yeti_t : monster_t {} 
-
 class spider_yeti_t : yeti_t {}
-
 class ufo_t : monster_t {} /// beams you up
-
 class evil_skiier : monster_t {} // unarmed/knife. uzi. rocket launchers
  // NAZIS SKIIERS?!?!?
  // Are we... FLEEING A NAZI CAMP?!
@@ -1121,9 +1136,6 @@ class moose_t : monster_t {}
 class wolf_t : monster_t {}
 class rabbit_t : monster_t {}
 class fox_t : monster_t {}
-
-
-
 
 
 /// Player class
@@ -1329,11 +1341,38 @@ class world_t
 		
 		for(int i = 0; i < number_of_trees; i++)
 			{
-			large_tree_t tree = new large_tree_t;
-			tree.x = uniform(0, g.maximum_x);
-			tree.y = uniform(0, g.maximum_y);
+			import std.math;
+			int r = uniform!"[]"(0,3);
+			
+			if(r == 0)
+				{
+				large_tree_t tree = new large_tree_t;
+					tree.x = uniform(0, g.maximum_x);
+					tree.y = uniform(0, g.maximum_y);
+				objects ~= tree;
+				}
+			if(r == 1)
+				{
+				small_tree_t tree = new small_tree_t;
+					tree.x = uniform(0, g.maximum_x);
+					tree.y = uniform(0, g.maximum_y);
+				objects ~= tree;
+				}
+			if(r == 2)
+				{
+				stump_t s = new stump_t;
+					s.x = uniform(0, g.maximum_x);
+					s.y = uniform(0, g.maximum_y);
+				objects ~= s;
+				}
+			if(r == 3)
+				{
+				rock_t rock = new rock_t;
+					rock.x = uniform(0, g.maximum_x);
+					rock.y = uniform(0, g.maximum_y);
+				objects ~= rock;
+				}
 		
-			objects ~= tree;
 			}
 		}
  	
