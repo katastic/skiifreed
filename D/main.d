@@ -26,11 +26,24 @@
 				- i.e. mud trenches like a mud version of a river generation
 
 		- NEW PARTICLE: Skii trails! <----
+			- we could mark dots every x frames, and then have a single polygon/segmented line draw call, 
+				or multiple connect the dots and increase transparency as it goes away/gets older.
+				if we ever support multiple colors of background/biomes, we could store which color is 
+				under it to match if necessary/helpful.
+
+
 		- WIND. Make snow particles go the same direction!
 				- give wind a direction and velocity
 				- give particles a bell curve + std deviation to change from that
 				- should snow ever land on the "ground" instead of the edge of the screen
 					which essentially means the snow is so high up
+				- particle count / wind / snow could get DENSER at certain times for certain events 
+					or areas, however, we'd need to include a way to manage the memory correctly.
+					- EASY TRICK. Allocate MAX_PARTICLES, but only draw/update them 
+						for(NEEDED_PARTICLES) and just leave the rest. The only backfire is slight
+						wasted memory, and those particles that aren't updated may "glitch" when 
+						they come back into use going from HIGH to LOW then back to HIGH.
+
 
 		- Neat thing is, because snow particles are viewport position aware, they "change" 
 			as you move left or right or down on the map, even though they're still just clipped
@@ -119,7 +132,7 @@ struct globals_t
 	ALLEGRO_BITMAP* 		snowflake_bmp;
 	ALLEGRO_BITMAP* 		bmp;
 	immutable float JUMP_VELOCITY = 2.2F; 
-	immutable uint NUM_SNOW_PARTICLES = 50; //per viewport
+	immutable uint NUM_SNOW_PARTICLES = 100; //per viewport
 
 	//world dimensions
 	immutable float maximum_x = 2000F; 	
