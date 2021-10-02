@@ -7,7 +7,7 @@
 			- Any games we can think of?
 		- Monsters
 		- BOUNDING COLLISION BOXES (also draw collision boxes?)
-
+	- enemy artillary strikes
 
 	 - INNOCENT PEDESTRIALS
      - GORE.
@@ -122,6 +122,103 @@ void clampBoth(T)(ref T val, T min, T max)
 		}
 	}	
 
+// snow trails
+//=============================================================================
+struct dot
+	{
+	float x=0;
+	float y=0; 
+	// do we need an age? Or can we handle that with array length/index?
+	}
+
+class trail_t
+	{
+	dot[] dots; //this will need to be a FIFO buffer?
+	ulong start = 0;
+	ulong MAX = 10;
+	//what if we hold an index of the current start and just run (we wrap around) until we hit the limit.
+	// how do we determine the oldest trail though? by the 'start'?
+
+	void draw(viewport_t v)
+		{
+//		writeln("draw() recieving viewport ", v.x, " ", v.y, " ", v.offset_x, " ", v.offset_y); 
+		if(dots.length == 0)return;
+		ulong index = start+1;
+		ulong total = 0;
+		writeln("drawing");
+		
+		dot last_point = dot(0,0);
+		dot current_point = dots[start];
+
+		while(true)
+			{
+			if(index > dots.length-1 && total < dots.length)
+				{ 
+				//wrap around
+				index = 0;
+				}
+			if(total == dots.length)break;
+			
+			last_point = current_point;
+			current_point = dots[index];
+
+		al_draw_line(
+				last_point.x - v.offset_x + v.x, 
+				last_point.y - v.offset_y + v.y, 
+				current_point.x - v.offset_x + v.x, 
+				current_point.y - v.offset_y + v.y,
+				ALLEGRO_COLOR(1,0,0,1), 
+				2);
+
+/*
+ 			al_draw_circle(
+				dots[index].x - v.offset_x, 
+				dots[index].y - v.offset_y, 
+				5, 
+				ALLEGRO_COLOR(1,0,0,1), 
+				3);*/
+			writeln(index, " " ,last_point.x, " ", last_point.y);
+			writeln(index, " " ,current_point.x, " ", current_point.y);
+
+			index++;
+			total++;
+			}
+		}
+
+	int steps = 0;
+
+	void on_tick(float x, float y)
+		{
+		steps++;
+		if(steps == 10){
+		steps = 0;
+
+		writeln(start, " start ", dots.length, " length");
+		if(dots.length == MAX)
+			{
+			writeln(start, " - starting over and replacing");			
+
+			if(start == MAX-1)
+				{
+				start = 0;
+				writeln(start, " - ");
+				}else{
+				start++;
+				writeln(start, " - ");
+				}
+
+			writeln(start, " - starting over and replacing");
+			dots[start].x = x;
+			dots[start].y = y;
+			}else{
+			dot d;
+			d.x = x;
+			d.y = y;
+			dots ~= d;
+			writeln(" - adding dot");
+			}
+	}	}
+	}
 
 // CONSTANTS
 //=============================================================================
@@ -1297,6 +1394,9 @@ class viewport_t
 
 class world_t
 	{			
+	trail_t[] trail;
+
+
 	bullet_handler bullet_h; //cleanme
 	drawable_object_t [] objects; //should be drawable_object_t?
 	// monster_t [] monsters; // or combine with objects? tradeoffs. 
@@ -1412,6 +1512,13 @@ class world_t
 			}
 			
 		bullet_h.draw(v);
+
+		writeln("start of trail1");
+		writeln("-------------------------------");
+		trail[0].draw(v);
+		writeln("start of trail2");
+		writeln("-------------------------------");
+		trail[1].draw(v);
 		
 		if(v == viewports[0]) //omfg kill me now.
 			{
@@ -1429,6 +1536,9 @@ class world_t
 			// since there are far fewer players than everything else, lets do the collision checking in the player objects.
 			}
 		bullet_h.on_tick();
+		trail[0].on_tick(objects[0].x, objects[0].y);
+		trail[1].on_tick(objects[1].x, objects[1].y);
+
 		viewports[0].snow.on_viewport_tick(viewports[0]);
 		viewports[1].snow.on_viewport_tick(viewports[1]);
 		}
@@ -1533,6 +1643,9 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	world = new world_t;
 	g.snow_bmp 	= al_load_bitmap("./data/snow.jpg");
 	g.snowflake_bmp 	= al_load_bitmap("./data/snowflake.png");
+
+	world.trail ~= new trail_t;
+	world.trail ~= new trail_t;
 
 	// Create objects for player's 1 and 2 as first two slots
 	// --------------------------------------------------------
