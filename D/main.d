@@ -70,7 +70,7 @@ import core.thread; //for yield... maybe?
 extern (C) int pthread_yield(); //does this ... work? No errors yet I can't tell if it changes anything...
 //------------------------------
 
-pragma(lib, "dallegro5");
+pragma(lib, "dallegro5ldc");
 
 version(ALLEGRO_NO_PRAGMA_LIB)
 {
@@ -145,7 +145,7 @@ class trail_t
 		if(dots.length == 0)return;
 		ulong index = start+1;
 		ulong total = 0;
-		writeln("drawing");
+//		writeln("drawing");
 		
 		dot last_point = dot(0,0);
 		dot current_point = dots[start];
@@ -177,8 +177,8 @@ class trail_t
 				5, 
 				ALLEGRO_COLOR(1,0,0,1), 
 				3);*/
-			writeln(index, " " ,last_point.x, " ", last_point.y);
-			writeln(index, " " ,current_point.x, " ", current_point.y);
+//			writeln(index, " " ,last_point.x, " ", last_point.y);
+//			writeln(index, " " ,current_point.x, " ", current_point.y);
 
 			index++;
 			total++;
@@ -1403,6 +1403,26 @@ class world_t
 	// - DRAW ORDER for one! (keep monsters behind trees, UFOs last and on top)
 	// - collision only between things that collide (tree only searches against players. not against tree list, monster list?, etc)
 
+
+
+
+// TODO THE MATH IS NOT RIGHT FOR THIS. It's expanding as you move down / right!!!!
+// And, for some odd reason, even when smaller, it's taking a huge percentage of the profile time??l
+// WAIT, does this file not get overwritten? Or is it SUMMING to it? SOMETHING is going on here.
+// But it is still taking a huge percentage of time (~to initialize time!)
+/*
+ * 
+*   Num          Tree        Func        Per
+  Calls        Time        Time        Call
+
+     82         621         621           7     void main.world_t.draw_background(main.viewport_t)
+      1         607         566         566     bool main.initialize()
+     82          39          39           0     void main.snow_t.draw(main.viewport_t)
+
+* 
+* 
+* it may be the d profiler being crap? because valgrind shows 0.00% here.
+* */
 	void draw_background(viewport_t v)
 		{
 		//texture width/height alias
@@ -1513,11 +1533,11 @@ class world_t
 			
 		bullet_h.draw(v);
 
-		writeln("start of trail1");
-		writeln("-------------------------------");
+//		writeln("start of trail1");
+//		writeln("-------------------------------");
 		trail[0].draw(v);
-		writeln("start of trail2");
-		writeln("-------------------------------");
+//		writeln("start of trail2");
+//		writeln("-------------------------------");
 		trail[1].draw(v);
 		
 		if(v == viewports[0]) //omfg kill me now.
@@ -1829,7 +1849,7 @@ struct display_t
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "fps[%d]", stats.fps);
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "mouse [%d, %d][%d]", mouse_x, mouse_y, mouse_lmb);
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "target [%d, %d]", target.x, target.y);
-			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], tiles [%d], particles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles, stats.number_of_drawn_particles);
+			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "number of drawn objects [%d], bg_tiles [%d], particles [%d]", stats.number_of_drawn_objects, stats.number_of_drawn_background_tiles, stats.number_of_drawn_particles);
 			
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player1.xyz [%2.2f/%2.2f/%2.2f] v[%2.2f/%2.2f/%2.2f] d[%d]", world.objects[0].x, world.objects[0].y, world.objects[0].z, world.objects[0].x_vel, world.objects[0].y_vel, world.objects[0].z_vel, world.objects[0].direction);
 			al_draw_textf(g.font, ALLEGRO_COLOR(0, 0, 0, 1), 20, text_helper(false), ALLEGRO_ALIGN_LEFT, "player2.xy [%2.2f/%2.2f] v[%2.2f/%2.2f] d[%d]", world.objects[1].x, world.objects[1].y, world.objects[1].x_vel, world.objects[1].y_vel, world.objects[1].direction);

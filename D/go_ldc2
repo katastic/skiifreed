@@ -3,7 +3,12 @@
 #of  output file
 #ldc2 -w -release -ofmain main.d -L-L. $@    -gc -d-debug=3  -de
 
-ldc2 -w -release -ofmain main.d -L-L. $@
+#ldc2 -w -release -ofmain main.d -L-L/usr/local/lib/ -L-L. $@
+ldc2 -w -d-debug -ofmain main.d -L-L/usr/local/lib/ -L-L. $@
+
+#  -fprofile-instr-generate
+# https://wiki.dlang.org/LDC_LLVM_profiling_instrumentation
+
 
 # globals.d 
 
