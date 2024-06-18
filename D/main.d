@@ -70,7 +70,7 @@ import core.thread; //for yield... maybe?
 extern (C) int pthread_yield(); //does this ... work? No errors yet I can't tell if it changes anything...
 //------------------------------
 
-pragma(lib, "dallegro5ldc");
+pragma(lib, "dallegro5dmd");
 
 version(ALLEGRO_NO_PRAGMA_LIB)
 {
@@ -94,33 +94,26 @@ import allegro5.allegro_color;
 //=============================================================================
 
 // can't remember the best name for this.
- void clampUpper(T)(ref T val, T max)
-	{
-	if(val > max)
-		{
+ void clampUpper(T)(ref T val, T max){
+	if(val > max){
 		val = max;
 		}
 	}	
 
-void clampLower(T)(ref T val, T min)
-	{
-	if(val < min)
-		{
+void clampLower(T)(ref T val, T min){
+	if(val < min){
 		val = min;
 		}
 	}	
 
-void clampBoth(T)(ref T val, T min, T max)
-	{
-	if(val < min)
-		{
+void clampBoth(T)(ref T val, T min, T max){
+	if(val < min){
 		val = min;
 		}
-	if(val > max)
-		{
+	if(val > max){
 		val = max;
 		}
-	}	
+	}
 
 // snow trails
 //=============================================================================
@@ -139,8 +132,7 @@ class trail_t
 	//what if we hold an index of the current start and just run (we wrap around) until we hit the limit.
 	// how do we determine the oldest trail though? by the 'start'?
 
-	void draw(viewport_t v)
-		{
+	void draw(viewport_t v){
 //		writeln("draw() recieving viewport ", v.x, " ", v.y, " ", v.offset_x, " ", v.offset_y); 
 		if(dots.length == 0)return;
 		ulong index = start+1;
@@ -150,10 +142,8 @@ class trail_t
 		dot last_point = dot(0,0);
 		dot current_point = dots[start];
 
-		while(true)
-			{
-			if(index > dots.length-1 && total < dots.length)
-				{ 
+		while(true){
+			if(index > dots.length-1 && total < dots.length){ 
 				//wrap around
 				index = 0;
 				}
@@ -187,19 +177,16 @@ class trail_t
 
 	int steps = 0;
 
-	void on_tick(float x, float y)
-		{
+	void on_tick(float x, float y){
 		steps++;
 		if(steps == 10){
 		steps = 0;
 
 		writeln(start, " start ", dots.length, " length");
-		if(dots.length == MAX)
-			{
+		if(dots.length == MAX){
 			writeln(start, " - starting over and replacing");			
 
-			if(start == MAX-1)
-				{
+			if(start == MAX-1){
 				start = 0;
 				writeln(start, " - ");
 				}else{
@@ -222,8 +209,7 @@ class trail_t
 
 // CONSTANTS
 //=============================================================================
-struct globals_t
-	{
+struct globals_t{
 	ALLEGRO_FONT* 			font;
 	ALLEGRO_BITMAP* 		snow_bmp;
 	ALLEGRO_BITMAP* 		snowflake_bmp;
@@ -248,38 +234,30 @@ struct globals_t
 	immutable float bullet_velocity = 7.5f;
 	
 	ALLEGRO_COLOR snow_color;
-
 	}
 
 globals_t g;
 
-struct bullet_handler
-	{
+struct bullet_handler{
 	bullet_t[] data;
 	
-	void add(bullet_t b)
-		{
+	void add(bullet_t b){
 		data ~= b;
 		}
 	
-	void on_tick()
-		{
-		foreach (b; data) 
-			{
+	void on_tick(){
+		foreach (b; data){
 			b.on_tick();
 			}
 			
 		//prune ready-to-delete entries
-		for (size_t i = data.length ; i-- > 0 ; )
-			{
+		for (size_t i = data.length ; i-- > 0 ; ){
 			if(data[i].delete_me)data = data.remove(i); continue;
 			}//https://forum.dlang.org/post/sagacsjdtwzankyvclxn@forum.dlang.org
 		}
 	
-	void draw(viewport_t v)
-		{
-		foreach (b; data) 
-			{
+	void draw(viewport_t v){
+		foreach (b; data){
 			b.draw(v);
 			}
 		}
@@ -294,8 +272,7 @@ struct bullet_handler
 		//}
 	}
 
-enum 
-	{
+enum {
 	DIR_SINGLE_FRAME	= -3, //note
 	DIR_FULL_LEFT 		= -3, //note (wish I remembered why these are the same other than just writing 'note')
 	DIR_FAR_ANGLE_LEFT 	= -2,
@@ -347,13 +324,9 @@ immutable float [7] v_to_h_conversion =
 immutable bool DEBUG_DRAW_BOXES = false;
 immutable bool DEBUG_NO_BACKGROUND = false;
 
-
-
-
 ALLEGRO_CONFIG* 		cfg;  //whats this used for?
 ALLEGRO_DISPLAY* 		al_display;
 ALLEGRO_EVENT_QUEUE* 	queue;
-
 
 animation_t player_anim;
 animation_t monster_anim;
@@ -375,13 +348,11 @@ int mouse_lmb = 0;
 
 xy_pair target;
 
-struct xy_pair
-	{
+struct xy_pair{
 	int x;
 	int y;
 	
-	this(int _x, int _y)
-		{
+	this(int _x, int _y){
 		x = _x;
 		y = _y;
 		}
@@ -393,8 +364,7 @@ display_t display;
 // Or is the single dereference NOT a big deal to pass tbe "globals struct"
 // to every main function...
 
-struct statistics_t
-	{
+struct statistics_t{
 	ulong number_of_drawn_particles;
 	ulong number_of_drawn_objects;
 	ulong number_of_drawn_background_tiles;
@@ -406,26 +376,22 @@ statistics_t stats;
 
 //=============================================================================
 
-class animation_t
-	{
+class animation_t{
 	bool has_loaded_a_frame;
 	ALLEGRO_BITMAP *[] frames;
 	string [] names;
 	
-	int get_width()
-		{
+	int get_width(){
 		assert(has_loaded_a_frame, "Did you remember to ADD a frame before calling get_width()?");
 		return al_get_bitmap_width(frames[0]);
 		}
 		
-	int get_height()
-		{
+	int get_height(){
 		assert(has_loaded_a_frame, "Did you remember to ADD a frame before calling get_height()?");
 		return al_get_bitmap_height(frames[0]);
 		}
 
-	void load_extra_frame(string path)
-		{
+	void load_extra_frame(string path){
 		ALLEGRO_BITMAP *extra_frame = al_load_bitmap( toStringz(path));
 		assert(extra_frame != null, "fuck");
 		
@@ -435,8 +401,7 @@ class animation_t
 		has_loaded_a_frame = true;
 		}
 		
-	void load_extra_frame_mirrored(string path)
-		{
+	void load_extra_frame_mirrored(string path){
 		ALLEGRO_BITMAP *original_frame = al_load_bitmap( toStringz(path));
 		ALLEGRO_BITMAP *extra_frame = 
 			al_create_bitmap(
@@ -453,33 +418,29 @@ class animation_t
 		has_loaded_a_frame = true;
 		}
 
-	void load_extra_frame(string path, string name)
-		{
+	void load_extra_frame(string path, string name){
 		ALLEGRO_BITMAP *extra_frame = al_load_bitmap( toStringz(path));
 		frames ~= extra_frame;
 		names ~= name;
 		has_loaded_a_frame = true;
 		}
 		
-	ALLEGRO_BITMAP* get_frame_by_number(int i) //TODO
-		{
+	ALLEGRO_BITMAP* get_frame_by_number(int i) { //TODO
 		ALLEGRO_BITMAP* x;
 		return x;
 		}
-	ALLEGRO_BITMAP* get_frame_by_name(string name) //TODO
-		{
+
+	ALLEGRO_BITMAP* get_frame_by_name(string name){ //TODO
 		ALLEGRO_BITMAP* x;
 		return x;
 		}
 	
-	void draw(int frame, float x, float y)
-		{
+	void draw(int frame, float x, float y){
 		stats.number_of_drawn_objects++;
 		al_draw_bitmap(frames[frame], x, y, 0);
 		}
 
-	void draw_rotated(int frame, float x, float y, float angle)
-		{
+	void draw_rotated(int frame, float x, float y, float angle){
 		stats.number_of_drawn_objects++;
 
 		al_draw_rotated_bitmap(frames[frame], 
@@ -491,8 +452,7 @@ class animation_t
 			0);
 		}
 
-	void draw_centered(int frame, float x, float y)
-		{
+	void draw_centered(int frame, float x, float y){
 		stats.number_of_drawn_objects++;
 		al_draw_bitmap(
 			frames[frame], 
@@ -503,8 +463,7 @@ class animation_t
 //		draw_target_dot (x, y); 
 //		draw_target_dot (x - get_width()/2, y - get_height()/2); 
 		
-		static if (false) // Draw bordering dots
-			{
+		static if (false){ // Draw bordering dots
 			//top left
 			draw_target_dot(  
 				to!(int)(x - get_width()/2), 
@@ -527,8 +486,7 @@ class animation_t
 	void empty(){}
 	}
 	
-void load_resources()	
-	{
+void load_resources(){
 	player_anim = new animation_t;
 	monster_anim = new animation_t;
 	tree_anim = new animation_t;
@@ -557,8 +515,7 @@ void load_resources()
 	}
 
 //DEFINITELY want this to be a class / reference type!
-class object_t //could we use a drawable_object whereas object_t has re-usable functionality for a camera_t?
-	{
+class object_t{ //could we use a drawable_object whereas object_t has re-usable functionality for a camera_t?
 	public:
 	bool		delete_me = false;
 	
@@ -576,20 +533,17 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	bool is_following_another_object; 
 	object_t object_to_follow; 
 
-	void set_width(float _w)
-		{
+	void set_width(float _w){
 		w = _w;
 		w2 = to!(int)(w/2);
 		}
 		
-	void set_height(float _h)
-		{
+	void set_height(float _h){
 		h = _h;
 		h = to!(int)(h/2);
 		}
 
-	this()
-		{			
+	this(){			
 		direction = DIR_DOWN; // -3, -2, -1, 0, 1, 2, 3
 		x = 0;
 		y = 0;
@@ -604,8 +558,7 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 		is_following_another_object = false;
 		}
 		
-	void follow_object(object_t obj)
-		{
+	void follow_object(object_t obj){
 		is_following_another_object = true;
 		object_to_follow = obj;
 		}
@@ -621,8 +574,7 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 	
 	// EVENTS
 	// ------------------------------------------
-	void on_tick()
-		{
+	void on_tick(){
 		if(is_following_another_object)
 			{
 			x = object_to_follow.x;
@@ -632,26 +584,22 @@ class object_t //could we use a drawable_object whereas object_t has re-usable f
 		y += y_vel;
 		}
 
-	void on_collision(object_t other_obj)
-		{
+	void on_collision(object_t other_obj){
 		}	
 	}
 	
-class camera_t : object_t 
-	{
+class camera_t : object_t{
 	// simply uses the follow object routines in object_t!
 	}
 
-class drawable_object_t : object_t /// drawable AND collidable
-	{
+class drawable_object_t : object_t{ /// drawable AND collidable
 	// Collision box. e.g. for trees, it's the stump, not the whole sprite.
 	int	bounding_x;
 	int	bounding_y;
 	int	bounding_w;
 	int	bounding_h;
 
-	this()	
-		{
+	this()	{
 		bounding_x = 0;
 		bounding_y = 0;
 		bounding_w = 16;
@@ -663,8 +611,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 		//writeln("[drawable_object_t] constructor called.");
 		}
 	
-	void setup_dimensions(animation_t anim)
-		{
+	void setup_dimensions(animation_t anim){
 		set_width(anim.get_width());
 		set_height(anim.get_height());
 		bounding_w = anim.get_width();
@@ -673,8 +620,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 		bounding_y = -bounding_h/2;
 		}
 	
-	bool is_colliding_with(drawable_object_t obj)
-		{
+	bool is_colliding_with(drawable_object_t obj){
 		assert(this != obj);	
 
 		auto x1 = x + bounding_x; //
@@ -721,8 +667,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 	//  down, 
 	//	down left, down left left, left
 	//  down right, down right right, right
-	void draw_bounding_box(viewport_t v)
-		{
+	void draw_bounding_box(viewport_t v){
 		ALLEGRO_COLOR color = al_map_rgba(255,0,0, 255);
 		ALLEGRO_COLOR color2 = al_map_rgba(255,0,0, 64);
 		
@@ -774,8 +719,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 
 	// Theoretical (if correct) dimensions of where the sprite should be,
 	// including a center line. 
-	void draw_sprite_box(viewport_t v)
-		{
+	void draw_sprite_box(viewport_t v){
 		ALLEGRO_COLOR color = al_map_rgb(0,255,0);
 		ALLEGRO_COLOR color2 = al_map_rgba(0,255,0,64);
 		
@@ -825,16 +769,14 @@ class drawable_object_t : object_t /// drawable AND collidable
 			1);
 		}
 
-	void set_animation(animation_t anim)
-		{
+	void set_animation(animation_t anim){
 		assert(anim !is null, "You passed a NULL animation to set_animation in drawable_object_t!");
 		animation = anim;
 		
 		setup_dimensions(anim);		
 		}
 
-	void draw(viewport_t viewport) /// Drawn centered
-		{		
+	void draw(viewport_t viewport){ /// Drawn centered
 		auto v = viewport;
 		
 		//WARNING: CONFIRM THESE.
@@ -858,8 +800,7 @@ class drawable_object_t : object_t /// drawable AND collidable
 		}
 	}
 
-class bullet_t : drawable_object_t
-	{
+class bullet_t : drawable_object_t{
 		/*  this one works, however the default behavior seems to be all i need at the moment.
 	import std.array : appender; 
     override string toString() const pure @safe
@@ -887,8 +828,7 @@ class bullet_t : drawable_object_t
     */
     	
 	float a = 0; /// angle
-	this()
-		{
+	this(){
 		x = -1;
 		y = -10;
 		direction = DIR_SINGLE_FRAME;
@@ -899,8 +839,7 @@ class bullet_t : drawable_object_t
 
 // FLAW. this copy's drawable object but we need only change one line or so for ROTATIONS.
 // either add it to main class or figure out how to split the changed parts only		
-	override void draw(viewport_t viewport)
-		{		
+	override void draw(viewport_t viewport){		
 		auto v = viewport;
 		
 		//WARNING: CONFIRM THESE.
@@ -922,8 +861,7 @@ class bullet_t : drawable_object_t
 		}
 
 
-	override void on_tick()
-		{
+	override void on_tick(){
 		if(x < 0)delete_me = true;
 		if(y < 0)delete_me = true;
 		if(x > g.maximum_x)delete_me = true;
@@ -948,10 +886,8 @@ class bullet_t : drawable_object_t
 	}
 	
 
-class large_tree_t : drawable_object_t
-	{
-	this()
-		{
+class large_tree_t : drawable_object_t{
+	this(){
 		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(tree_anim); // WARNING, using global interfaced tree_anim
@@ -959,81 +895,63 @@ class large_tree_t : drawable_object_t
 		}
 	}
 
-class small_tree_t : drawable_object_t
-	{
-	this()
-		{
+class small_tree_t : drawable_object_t {
+	this(){
 		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(small_tree_anim); // WARNING, using global interfaced small_tree_anim
 		}
 	}
 
-class stump_t : drawable_object_t
-	{
-	this()
-		{
+class stump_t : drawable_object_t{
+	this(){
 		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(stump_anim); // WARNING, using global interfaced small_tree_anim
 		}
 	}
 
-class rock_t : drawable_object_t
-	{
-	this()
-		{
+class rock_t : drawable_object_t{
+	this(){
 		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(rock_anim); // WARNING, using global interfaced small_tree_anim
 		}
 	}
 
-class large_rough_patch_t : drawable_object_t //slows you down.
-	{
-	this()
-		{
+class large_rough_patch_t : drawable_object_t{ //slows you down.
+	this(){
 		slows_you_down = true;
 		}
 	}
 
-class small_rough_patch_t : drawable_object_t //slows you down.
-	{
-	this()
-		{
+class small_rough_patch_t : drawable_object_t { //slows you down.
+	this(){
 		slows_you_down = true;
 		}
 	}
 	
-class sign_t : drawable_object_t
-	{
-	this()
-		{
+class sign_t : drawable_object_t{
+	this(){
 		trips_you = true;
 		}
 	}
 
-class lift_stand_t : drawable_object_t //the building
-	{
-	this()
-		{
+class lift_stand_t : drawable_object_t{ //the building
+	this(){
 		trips_you = true;
 		}
 	}
 
-class lift_chair_t : drawable_object_t
-	{
-	this()
-		{
+class lift_chair_t : drawable_object_t{
+	this(){
 		}
 	}
 
-class jump_t : drawable_object_t
-	{
+class jump_t : drawable_object_t{
 	// is a jump bool? OR, an event method!
 	// OMG, we could use this method to send ANY OBJECT FLYING, MWAHAHA.
-	override void on_collision(object_t other_obj) // I FREAKING LOVE EXPLICIT OVERRIDES.
-		{
+	override void on_collision(object_t other_obj){ // I FREAKING LOVE EXPLICIT OVERRIDES.
 		auto o = other_obj;
 		o.z_vel += g.JUMP_VELOCITY;
 		}
@@ -1041,8 +959,7 @@ class jump_t : drawable_object_t
 	
 // are we using a TEXTURED particle system for snow, or a PIXEL/opengl primitive one?
 // do we want this to be for all particles or just snow
-struct particle
-	{
+struct particle{
 	float x;
 	float y;
 	float xv; //not polar notation so we can quickly add without using sin/cos
@@ -1052,13 +969,11 @@ struct particle
 	// call for every single update, as well as the ability to operate on multiple
 	// particles at a time (MMX/AVX/etc)
 	
-struct snow_t
-	{
+struct snow_t{
 	particle[] data;
 	ALLEGRO_COLOR c;
 	
-	void add(float x, float y, float xv, float yv)
-		{
+	void add(float x, float y, float xv, float yv){
 //		writeln("x: ", x, " y: ", y, " ---- ");
 	//	writeln("vx: ", xv, " vy: ", yv, "  ");
 
@@ -1070,12 +985,10 @@ struct snow_t
 		data ~= p;
 		}
 	
-	void draw(viewport_t v)
-		{
+	void draw(viewport_t v){
 		stats.number_of_drawn_particles += data.length; //note, we may have multiple viewports! So we add this, not set it to length. And reset every frame.
 		// consider locking bitmap
-		foreach(p; data)
-			{
+		foreach(p; data){
 //			writeln("p.x: ", p.x, " p.y: ", p.y, " ---- ");
 // al_draw_rectangle(float x1, float y1, float x2, float y2,ALLEGRO_COLOR color, float thickness);
 			//al_draw_pixel(p.x - v.offset_x, p.y - v.offset_y, al_map_rgb(1,1,0));
@@ -1098,10 +1011,8 @@ struct snow_t
 	// at the viewport boundaries per viewport and no particles are accessed by
 	// the other viewport so it's just two simple arrays instead of sorting / booleans / etc
 	// to tell them apart. Since they're high-count particles they need to be as simple as possible.
-	void on_viewport_tick(viewport_t v)
-		{
-		foreach(ref p; data)
-			{
+	void on_viewport_tick(viewport_t v){
+		foreach(ref p; data){
 //			writeln("p.x: ", p.x, " p.y: ", p.y, "  before");
 	//		writeln("p.xv: ", p.xv, " p.yv: ", p.yv, "  before");
 			p.x += p.xv;
@@ -1118,15 +1029,13 @@ struct snow_t
 		}
 	}
 	
-class projectile_t
-	{
+class projectile_t{
 	animation_t sprite;
 	int damage;
 	int speed;
 	}
 	
-class weapon_t
-	{
+class weapon_t{
 	bool has_shotgun_reload=false; // likely not needed.
 	int starting_ammo;
 	int max_ammo;
@@ -1141,52 +1050,45 @@ class weapon_t
 	projectile_t projectile;
 	}
 
-class weapon_instance_t
-	{
+class weapon_instance_t{
 	weapon_t w;
 	int ammo;
 	float cooldown; //till next shot in milliseconds
 	}
 	
 class pickup_t {} /// item to be picked up
-class ammo_crate : pickup_t
-	{
+class ammo_crate : pickup_t{
 	animation_t sprite;
 	weapon_t ammo_for_type;
 	}
 
 class ai_state_t{}
 
-class ai_t
-	{
+class ai_t{
 	ai_state_t [] states;
 	ai_state_t current_state;
 	}
 
-class monster_ai_t
-	{
+class monster_ai_t{
 	//"run at assholes"
 	}
 
 /// Things that can Hurt (TM) you. e.g. Lionel Richie albums.
-class monster_t : drawable_object_t
-	{
+class monster_t : drawable_object_t{
 	ai_t ai;
 	// yeti:
 	// standing, alerted, walking, running, sprint-at-player, eating-player
 	// , enraged, dying, corpse
 	// eat animals?
 
-	this()
-		{
+	this(){
 		direction = DIR_SINGLE_FRAME;
 		trips_you = true;
 		set_animation(monster_anim); // WARNING, using global interfaced tree_anim
 	//	writeln("[large_tree_t] constructor called.");
 		}
 	
-	override void on_tick()
-		{
+	override void on_tick(){
 		import std.math : abs;
 		immutable float SPEED = 1.5f;
 
@@ -1201,8 +1103,7 @@ class monster_t : drawable_object_t
 		// if within range, run at player.
 		// will run at either player in range, favoring player 1.
 		// no state persistance yet, so no tracking first noticed player and staying on it ala Aggro.
-		if( x_dist < 200 && y_dist < 200 )
-			{
+		if( x_dist < 200 && y_dist < 200 ){
 			if(x < t.x) x+= SPEED;
 			if(x > t.x) x-= SPEED;
 			if(y < t.y) y+= SPEED;
@@ -1221,12 +1122,10 @@ class monster_t : drawable_object_t
 		// How do we get the monster to zig-zag like in the game?
 		}
 	
-	void scream()
-		{
+	void scream(){
 		}
 	
-	override void on_collision(object_t other_obj) 
-		{
+	override void on_collision(object_t other_obj){
 		if(auto p = cast(skier_t) other_obj)
 			{
 			// I'M GONNA EAT YOU, BUB.
@@ -1249,14 +1148,12 @@ class fox_t : monster_t {}
 
 
 /// Player class
-class skier_t : drawable_object_t
-	{
+class skier_t : drawable_object_t{
 	bool is_jumping;
 	bool is_grounded;
 
 	this(){}
-	this(int x, int y)
-		{
+	this(int x, int y){
 		this.x = x; 
 		this.y = y;
 		writeln("[skier_t] constructor called.");
@@ -1269,23 +1166,20 @@ class skier_t : drawable_object_t
 		bounding_y = -bounding_h/2;*/
 		}
 	
-	override void up()
-			{
+	override void up(){
 			writeln(" - [skier_t] up() recieved.");
 			//y_vel -= speed_change_rate;
 			//if(y_vel < 0)y_vel = 0;		
 			}
 
-	override void down()
-			{
+	override void down(){
 			writeln(" - [skier_t] down() recieved.");
 			direction=0;
 			//y_vel += speed_change_rate;
 			//if(y_vel > speed_maximum)y_vel = speed_maximum;		
 			}
 
-	override void left()
-			{
+	override void left(){
 			writeln(" - [skier_t] left() recieved.");
 			direction--;
 			if(direction < -3)direction = -3;
@@ -1293,8 +1187,7 @@ class skier_t : drawable_object_t
 			//if(x_vel < -speed_maximum)x_vel = -speed_maximum;		
 			}
 
-	override void right()
-			{
+	override void right(){
 			writeln(" - [skier_t] right() recieved.");
 			direction++;
 			if(direction > 3)direction = 3;
@@ -1302,8 +1195,7 @@ class skier_t : drawable_object_t
 			//if(x_vel > speed_maximum)x_vel = speed_maximum;		
 			}
 
-	override void action()
-			{
+	override void action(){
 			writeln(" - [skier_t] action() recieved.");
 			if(is_grounded)
 				{
@@ -1312,8 +1204,7 @@ class skier_t : drawable_object_t
 				}
 			}
 
-	override void on_tick()
-		{
+	override void on_tick(){
 //		writeln("Direction[", direction,"]");
 //		x_vel += h_speeds[direction+3];
 
@@ -1350,10 +1241,8 @@ class skier_t : drawable_object_t
 		if(x >= g.maximum_z){z_vel = 0; z = g.maximum_z-1;}
 		//writefln("[%f, %f, %f]-v[%f, %f, %f]", x, y, z, x_vel, y_vel, z_vel);
 		
-		foreach(o; world.objects)
-			{
-			if(auto p = cast(skier_t) o)
-				{ // https://forum.dlang.org/thread/mailman.135.1328728747.20196.digitalmars-d-learn@puremagic.com
+		foreach(o; world.objects){
+			if(auto p = cast(skier_t) o){ // https://forum.dlang.org/thread/mailman.135.1328728747.20196.digitalmars-d-learn@puremagic.com
 				  // if not null, it's a pointer to a skier object
 
 				// is fellow player object
@@ -1372,13 +1261,11 @@ class skier_t : drawable_object_t
 					writeln("OH SNAP-- I just hit a [", o.toString(), "]");
 					}
 				}
-
 			}
 		}
 	}
 	
-class viewport_t
-	{
+class viewport_t{
 	// Screen coordinates
 	int x;
 	int y;
@@ -1392,19 +1279,13 @@ class viewport_t
 	snow_t snow;
 	}
 
-class world_t
-	{			
+class world_t{			
 	trail_t[] trail;
-
-
 	bullet_handler bullet_h; //cleanme
 	drawable_object_t [] objects; //should be drawable_object_t?
 	// monster_t [] monsters; // or combine with objects? tradeoffs. 
 	// - DRAW ORDER for one! (keep monsters behind trees, UFOs last and on top)
 	// - collision only between things that collide (tree only searches against players. not against tree list, monster list?, etc)
-
-
-
 
 // TODO THE MATH IS NOT RIGHT FOR THIS. It's expanding as you move down / right!!!!
 // And, for some odd reason, even when smaller, it's taking a huge percentage of the profile time??l
@@ -1423,18 +1304,15 @@ class world_t
 * 
 * it may be the d profiler being crap? because valgrind shows 0.00% here.
 * */
-	void draw_background(viewport_t v)
-		{
+	void draw_background(viewport_t v){
 		//texture width/height alias
 		int tw = al_get_bitmap_width  (g.snow_bmp);
 		int th = al_get_bitmap_height (g.snow_bmp);			
 		int i = 0;
 		int j = 0;
-		while(i*tw < v.width*2 + v.offset_x) //is this the RIGHT?
-			{
+		while(i*tw < v.width*2 + v.offset_x){ //is this the RIGHT?
 			j=0;
-			while(j*th < v.height*2 + v.offset_y) //is this the RIGHT?
-				{
+			while(j*th < v.height*2 + v.offset_y){ //is this the RIGHT?
 				al_draw_bitmap(
 					g.snow_bmp, 
 					0 + v.x - v.offset_x - tw/2 + tw*i, 
@@ -1450,8 +1328,8 @@ class world_t
 	// Call this ONCE (or every time new objects appear)
 	// Or should we just have different lists for different objects? (so all trees are inherently 
 	// on a different z-layer from players, etc.)
-	void sort_objects_list() //Sorts ALL BUT the first two objects? how?
-		{ //easiest way is to simply call before adding the players...
+	void sort_objects_list(){ //Sorts ALL BUT the first two objects? how?
+		//easiest way is to simply call before adding the players...
 			// or, set the players to the MOST negative Y position until after sorting.
 			// WE COULD EVEN STORE THE VALUES TEMPORARILY!
 		// WARNING: ASsumes players 1 and 2 EXIST and are first already.
@@ -1468,53 +1346,44 @@ class world_t
 		objects[1].y = temp_p1_y;		
 		}
 
-	void populate_with_trees()
-		{
+	void populate_with_trees(){
 		immutable int number_of_trees = 1000;
 		
-		for(int i = 0; i < number_of_trees; i++)
-			{
+		for(int i = 0; i < number_of_trees; i++){
 			import std.math;
 			int r = uniform!"[]"(0,3);
 			
-			if(r == 0)
-				{
+			if(r == 0){
 				large_tree_t tree = new large_tree_t;
 					tree.x = uniform(0, g.maximum_x);
 					tree.y = uniform(0, g.maximum_y);
 				objects ~= tree;
 				}
-			if(r == 1)
-				{
+			if(r == 1){
 				small_tree_t tree = new small_tree_t;
 					tree.x = uniform(0, g.maximum_x);
 					tree.y = uniform(0, g.maximum_y);
 				objects ~= tree;
 				}
-			if(r == 2)
-				{
+			if(r == 2){
 				stump_t s = new stump_t;
 					s.x = uniform(0, g.maximum_x);
 					s.y = uniform(0, g.maximum_y);
 				objects ~= s;
 				}
-			if(r == 3)
-				{
+			if(r == 3){
 				rock_t rock = new rock_t;
 					rock.x = uniform(0, g.maximum_x);
 					rock.y = uniform(0, g.maximum_y);
 				objects ~= rock;
 				}
-		
 			}
 		}
  	
-	void populate_with_monsters()
-		{
+	void populate_with_monsters(){
 		immutable int number_of_monsters = 100;
 		
-		for(int i = 0; i < number_of_monsters; i++)
-			{
+		for(int i = 0; i < number_of_monsters; i++){
 			monster_t m = new monster_t;
 			m.x = uniform(0, g.maximum_x);
 			m.y = uniform(0, g.maximum_y);
@@ -1523,11 +1392,9 @@ class world_t
 			}
 		}
 
-	void draw(viewport_t v)
-		{
+	void draw(viewport_t v){
 		static if(!DEBUG_NO_BACKGROUND)draw_background(v);
-		foreach(o; objects)
-			{
+		foreach(o; objects){
 			o.draw(v);
 			}
 			
@@ -1540,18 +1407,15 @@ class world_t
 //		writeln("-------------------------------");
 		trail[1].draw(v);
 		
-		if(v == viewports[0]) //omfg kill me now.
-			{
+		if(v == viewports[0]){
 			viewports[0].snow.draw(viewports[0]); //TODO clean API
 			}else{
 			viewports[1].snow.draw(viewports[1]);
 			}
 		}
 
-	void logic()
-		{
-		foreach(o; objects)
-			{
+	void logic(){
+		foreach(o; objects){
 			o.on_tick();
 			// since there are far fewer players than everything else, lets do the collision checking in the player objects.
 			}
@@ -1569,8 +1433,7 @@ class world_t
 // 		change objects? We have to FIND all keys associated with that object and 
 // 		change them.)
 alias ALLEGRO_KEY = ubyte;
-struct keyset_t
-		{
+struct keyset_t{
 		object_t obj;
 		ALLEGRO_KEY [ __traits(allMembers, keys_label).length] key;
 		// If we support MOUSE clicks, we could simply attach a MOUSE in here 
@@ -1578,8 +1441,7 @@ struct keyset_t
 		// But again, that kills the idea of multiplayer.
 		}
 		
-enum keys_label
-	{
+enum keys_label{
 	ERROR = 0,
 	UP_KEY,
 	DOWN_KEY,
@@ -1592,10 +1454,8 @@ enum keys_label
 	ACTION_KEY
 	}
 
-bool initialize()
-	{
-	if (!al_init())
-		{
+bool initialize(){
+	if (!al_init()){
 		auto ver 		= al_get_allegro_version();
 		auto major 		= ver >> 24;
 		auto minor 		= (ver >> 16) & 255;
@@ -1620,10 +1480,8 @@ bool initialize()
 		}
 	*/
 	
-static if (false) // MULTISAMPLING. Not sure if helpful.
-	{
-	with (ALLEGRO_DISPLAY_OPTIONS)
-		{
+static if (false){
+	with (ALLEGRO_DISPLAY_OPTIONS){
 		al_set_new_display_option(ALLEGRO_SAMPLE_BUFFERS, 1, ALLEGRO_REQUIRE);
 		al_set_new_display_option(ALLEGRO_SAMPLES, 8, ALLEGRO_REQUIRE);
 		}
@@ -1646,8 +1504,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	g.bmp  = al_load_bitmap("./data/mysha.pcx");
 	g.font = al_load_font("./data/DejaVuSans.ttf", 18, 0);
 
-	with(ALLEGRO_BLEND_MODE)
-		{
+	with(ALLEGRO_BLEND_MODE){
 		al_set_blender(ALLEGRO_BLEND_OPERATIONS.ALLEGRO_ADD, ALLEGRO_ALPHA, ALLEGRO_INVERSE_ALPHA);
 		}
 		
@@ -1738,8 +1595,7 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 
 	import std.random : uniform;
 
-	for(int i = 0; i < g.NUM_SNOW_PARTICLES; i++)
-		{
+	for(int i = 0; i < g.NUM_SNOW_PARTICLES; i++){
 		viewports[0].snow.add(
 			world.objects[0].x + uniform(-100,1000), //pos 
 			world.objects[0].y + uniform(-100,1000), 
@@ -1763,49 +1619,36 @@ static if (false) // MULTISAMPLING. Not sure if helpful.
 	return 0;
 	}
 	
-struct display_t
-	{
-	void start_frame()	
-		{
+struct display_t{
+	void start_frame(){
 		stats.number_of_drawn_objects=0;
 		stats.number_of_drawn_background_tiles=0;
 		stats.number_of_drawn_particles=0;
 		
-
-		
-		static if(DEBUG_NO_BACKGROUND)
-			{
+		static if(DEBUG_NO_BACKGROUND){
 			reset_clipping(); //why would we need this? One possible is below! To clear to color the whole screen!
 			al_clear_to_color(ALLEGRO_COLOR(.2,.2,.2,1)); //only needed if we aren't drawing a background
 			}
 		}
 		
-	void end_frame()
-		{	
+	void end_frame(){	
 		al_flip_display();
 		}
 
-	void draw_frame()
-		{
+	void draw_frame(){
 		start_frame();
 		//------------------
-
 		draw2();
-
 		//------------------
 		end_frame();
 		}
 
-	void reset_clipping()
-		{
+	void reset_clipping(){
 		al_set_clipping_rectangle(0, 0, g.SCREEN_W-1, g.SCREEN_H-1);
 		}
 		
-	void draw2()
-		{
-		
-	static if(true) //draw left viewport
-		{
+	void draw2(){
+	static if(true){  //draw left viewport
 		al_set_clipping_rectangle(
 			viewports[0].x, 
 			viewports[0].y, 
@@ -1818,8 +1661,7 @@ struct display_t
 		world.draw(viewports[0]);
 		}
 
-	static if(true) //draw right viewport
-		{
+	static if(true){ //draw right viewport
 		al_set_clipping_rectangle(
 			viewports[1].x, 
 			viewports[1].y, 
@@ -1833,8 +1675,7 @@ struct display_t
 		}
 		
 		//Viewport separator
-	static if(true)
-		{
+	static if(true){
 		al_draw_line(
 			g.SCREEN_W/2 + 0.5, 
 			0 + 0.5, 
@@ -1863,18 +1704,15 @@ struct display_t
 	}
 
 //inline this? or template...
-void draw_target_dot(xy_pair xy)
-	{
+void draw_target_dot(xy_pair xy){
 	draw_target_dot(xy.x, xy.y);
 	}
 
-void draw_target_dot(float x, float y)
-	{
+void draw_target_dot(float x, float y){
 	draw_target_dot(to!(int)(x), to!(int)(y));
 	}
 
-void draw_target_dot(int x, int y)
-	{
+void draw_target_dot(int x, int y){
 	al_draw_pixel(x + 0.5, y + 0.5, al_map_rgb(0,1,0));
 
 	immutable r = 2; //radius
@@ -1882,8 +1720,7 @@ void draw_target_dot(int x, int y)
 	}
 
 /// For each call, this increments and returns a new Y coordinate for lower text.
-int text_helper(bool do_reset)
-	{
+int text_helper(bool do_reset){
 	static int number_of_entries = -1;
 	
 	number_of_entries++;
@@ -1896,8 +1733,7 @@ int text_helper(bool do_reset)
 	}
 
 /// Update viewport positions based on player position and viewport size
-void calculate_camera()
-	{
+void calculate_camera(){
 	// Calculate camera
 	viewports[0].offset_x = to!(int)(world.objects[0].x)-(viewports[0].width/2);
 	viewports[0].offset_y = to!(int)(world.objects[0].y)-(viewports[0].height/2);
@@ -1906,22 +1742,17 @@ void calculate_camera()
 	viewports[1].offset_y = to!(int)(world.objects[1].y)-(viewports[1].height/2);
 	}
 
-void logic()
-	{
+void logic(){
 	calculate_camera();
 	world.logic();
 	}
 
-void execute()
-	{
+void execute(){
 	bool exit = false;
-	while(!exit)
-		{
+	while(!exit){
 		ALLEGRO_EVENT event;
-		while(al_get_next_event(queue, &event))
-			{
-			switch(event.type)
-				{
+		while(al_get_next_event(queue, &event)){
+			switch(event.type){
 				case ALLEGRO_EVENT_DISPLAY_CLOSE:
 					{
 					exit = true;
@@ -1950,36 +1781,29 @@ void execute()
 
 					//THIS ISNT CACHED PER FRAME/DECOUPLED? OOOOOOOOOOOOOOOOOOOOOOF FIXME.
 					with(keys_label)
-					foreach(int i, keyset_t player_data; player_controls)
-						{
-						if(event.keyboard.keycode == player_data.key[UP_KEY])
-							{
+					foreach(int i, keyset_t player_data; player_controls){
+						if(event.keyboard.keycode == player_data.key[UP_KEY]){
 							writefln("Player %d - UP", i+1);
 							player_data.obj.up();
 							}
-						if(event.keyboard.keycode == player_data.key[DOWN_KEY])
-							{
+						if(event.keyboard.keycode == player_data.key[DOWN_KEY]){
 							writefln("Player %d - DOWN", i+1);
 							player_data.obj.down();
 							}
-						if(event.keyboard.keycode == player_data.key[LEFT_KEY])
-							{
+						if(event.keyboard.keycode == player_data.key[LEFT_KEY]){
 							writefln("Player %d - LEFT", i+1);
 							player_data.obj.left();
 							}
-						if(event.keyboard.keycode == player_data.key[RIGHT_KEY])
-							{
+						if(event.keyboard.keycode == player_data.key[RIGHT_KEY]){
 							writefln("Player %d - RIGHT", i+1);
 							player_data.obj.right();
 							}
-						if(event.keyboard.keycode == player_data.key[ACTION_KEY])
-							{
+						if(event.keyboard.keycode == player_data.key[ACTION_KEY]){
 							writefln("Player %d - ACTION", i+1);
 							player_data.obj.action();
 							}
 					
-						if(event.keyboard.keycode == ALLEGRO_KEY_F)
-							{
+						if(event.keyboard.keycode == ALLEGRO_KEY_F){
 							import std.math : sin, cos, atan2;
 							
 							mouse_lmb = true;
@@ -2004,8 +1828,7 @@ void execute()
 										
 						}
 							
-					switch(event.keyboard.keycode)
-						{					
+					switch(event.keyboard.keycode){					
 						case ALLEGRO_KEY_ESCAPE:
 							{
 							exit = true;
@@ -2063,29 +1886,23 @@ void execute()
 //best name? shutdown()? used. exit()? used. free? used. close()? used. finalize()? ???   --- Applicable name?
 // Finalize? Destroy? Terminate? Kill? Cleanup? Uninitialize? Deinitialize?  
 // >Dispose?
-void terminate() //I think "shutdown" is a standard lib UNIX function. Easier for breakpointing by name.
-	{
-		
+void terminate(){ //I think "shutdown" is a standard lib UNIX function. Easier for breakpointing by name.		
 	}
 
 //=============================================================================
-int main(string [] args)
-	{
+int main(string [] args){
 	writeln("args length = ", args.length);
-	foreach(size_t i, string arg; args)
-		{
+	foreach(size_t i, string arg; args){
 		writeln("[",i, "] ", arg);
 		}
 		
-	if(args.length > 2)
-		{
+	if(args.length > 2){
 		g.SCREEN_W = to!int(args[1]);
 		g.SCREEN_H = to!int(args[2]);
 		writeln("New resolution is ", g.SCREEN_W, "x", g.SCREEN_H);
 		}
 
-	return al_run_allegro(
-		{
+	return al_run_allegro({
 		initialize();
 		execute();
 		terminate();

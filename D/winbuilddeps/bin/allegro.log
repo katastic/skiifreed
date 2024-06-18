@@ -1,0 +1,16 @@
+system   I            wsystem.c:800  load_library_at_path             [   0.00000] Loaded C:\Windows\system32\shcore.dll
+system   I             system.c:271  al_install_system                [   0.00000] Allegro version: 5.2.9
+system   I            wsystem.c:800  load_library_at_path             [   0.00380] Loaded C:\Windows\system32\d3d9.dll
+d3d      I         d3d_disp.cpp:679  d3d_init_display                 [   0.10078] Render-to-texture: 1
+d3d      I         d3d_disp.cpp:1780 d3d_create_display_locked        [   0.10155] faux_fullscreen=0
+d3d      I d3d_display_formats.cpp:144  _al_d3d_generate_display_format_list [   0.10499] found 160 format combinations
+d3d      I         d3d_disp.cpp:1353 d3d_display_thread_proc          [   0.10532] Chose a display format: 23
+d3d      I         d3d_disp.cpp:1422 d3d_display_thread_proc          [   0.10549] Normal window.
+d3d      I         d3d_disp.cpp:786  d3d_create_device                [   0.15307] Using no depth stencil buffer
+d3d      I         d3d_disp.cpp:1736 d3d_create_display_internals     [   0.29162] Format 0 succeeded.
+system   I            wsystem.c:800  load_library_at_path             [   0.29509] Loaded C:\Windows\system32\d3dx9_43.dll
+d3dx9    I        d3d_d3dx9.cpp:88   _imp_load_d3dx9_module_version   [   0.29523] Module "d3dx9_43.dll" loaded.
+font     E                ttf.c:1023 al_load_ttf_font_stretch         [   0.34188] Unable to open file for reading: ./data/DejaVuSans.ttf
+d3d      I         d3d_disp.cpp:910  d3d_destroy_display              [   0.35250] destroying display 000001B9487CD940 (current 0000000000000000)
+d3d      W         d3d_disp.cpp:603  d3d_destroy_device               [   0.36708] d3d_destroy_device: ref count not 0
+d3d      I         d3d_disp.cpp:1557 d3d_display_thread_proc          [   0.37708] d3d display thread exits
